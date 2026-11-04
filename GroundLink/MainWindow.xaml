@@ -6,7 +6,33 @@
         xmlns:local="clr-namespace:GroundLink"
         mc:Ignorable="d"
         Title="MainWindow" Height="450" Width="800">
-    <Grid>
+    <ScrollViewer Margin="16">
+        <!-- Satellites 컬렉션의 항목 수만큼 카드를 반복해서 그림 -->
+        <ItemsControl ItemsSource="{Binding Satellites}">
 
-    </Grid>
+            <!-- 카드를 가로로 채우다 줄바꿈 -->
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <WrapPanel />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+
+            <!-- 위성 하나(SatelliteStatus)를 어떻게 그릴지 -->
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Border Width="180" Margin="8" Padding="12"
+                        CornerRadius="8" BorderBrush="#DDD" BorderThickness="1">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Id}" FontWeight="Bold" FontSize="16" />
+                            <TextBlock Text="{Binding Battery, StringFormat='배터리: {0:F1}%'}" />
+                            <TextBlock Text="{Binding Temperature, StringFormat='온도: {0:F1}°C'}" />
+                            <TextBlock Text="{Binding Mode, StringFormat='모드: {0}'}" />
+                            <TextBlock Text="{Binding InContact, StringFormat='교신 중: {0}'}" />
+                        </StackPanel>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+
+        </ItemsControl>
+    </ScrollViewer>
 </Window>
