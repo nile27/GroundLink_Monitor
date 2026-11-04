@@ -1,5 +1,6 @@
 ﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using GroundLink.Models;
 using GroundLink.Services;
 
@@ -24,5 +25,15 @@ public partial class MainViewModel : ObservableObject
         _service = service;
         Satellites = new ObservableCollection<SatelliteStatus>(_service.Satellites);
         _service.Start();
+    }
+
+    // [RelayCommand]: 이 메서드를 버튼에 연결할 수 있는 ToggleSafeModeCommand 속성을 자동 생성
+    // (메서드 이름 끝의 Async는 빠지고 Command가 붙음)
+    [RelayCommand]
+    private async Task ToggleSafeModeAsync(SatelliteStatus satellite)
+    {
+        // 지금 SAFE면 NORMAL로, 아니면 SAFE로
+        var next = satellite.Mode == "SAFE" ? "NORMAL" : "SAFE";
+        await _service.SetModeAsync(satellite.Id, next);
     }
 }

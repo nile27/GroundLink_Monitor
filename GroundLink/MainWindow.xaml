@@ -28,6 +28,12 @@
                             <TextBlock Text="{Binding Temperature, StringFormat='온도: {0:F1}°C'}" />
                             <TextBlock Text="{Binding Mode, StringFormat='모드: {0}'}" />
                             <TextBlock Text="{Binding InContact, StringFormat='교신 중: {0}'}" />
+
+                            <Button Margin="0,8,0,0"
+        Content="모드 전환"
+        Command="{Binding DataContext.ToggleSafeModeCommand,
+                  RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+        CommandParameter="{Binding}" />
                         </StackPanel>
                     </Border>
                 </DataTemplate>

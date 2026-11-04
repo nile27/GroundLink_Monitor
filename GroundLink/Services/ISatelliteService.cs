@@ -9,12 +9,20 @@ namespace GroundLink.Services;
 /// </summary>
 public interface ISatelliteService
 {
+    
     // 화면에 보여줄 위성 목록 (서비스가 계속 값을 갱신함)
     IReadOnlyList<SatelliteStatus> Satellites { get; }
+
+    // 위성 모드 변경 명령 (나중에 서버 POST /satellites/{id}/commands로 교체)
+    // Task를 반환하는 이유: 진짜 서버 호출은 시간이 걸리는 비동기 작업이라 미리 맞춰둠
+    Task SetModeAsync(string satelliteId, string mode);
 
     // 데이터 갱신 시작
     void Start();
 
     // 데이터 갱신 중지
     void Stop();
+
+
 }
+

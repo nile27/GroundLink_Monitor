@@ -45,6 +45,17 @@ public class FakeSatelliteService : ISatelliteService
 
     public void Stop() => _timer.Stop();
 
+    public Task SetModeAsync(string satelliteId, string mode)
+    {
+        // ID가 같은 위성을 찾아서 모드 변경
+        var sat = _satellites.FirstOrDefault(s => s.Id == satelliteId);
+        if (sat is not null)
+            sat.Mode = mode;
+
+        // 가짜라 바로 끝났다고 알림 (진짜는 서버 응답을 기다림)
+        return Task.CompletedTask;
+    }
+
     // 위성마다 값을 조금씩 랜덤하게 변경
     private void UpdateValues()
     {
@@ -57,7 +68,8 @@ public class FakeSatelliteService : ISatelliteService
             sat.Temperature += _random.NextDouble() - 0.5;
 
             // 배터리 20% 미만이면 SAFE 모드
-            sat.Mode = sat.Battery < 20 ? "SAFE" : "NORMAL";
+            if (sat.Battery < 20)
+                sat.Mode = "SAFE";
 
             // 5% 확률로 교신 상태 전환
             if (_random.NextDouble() < 0.05)
