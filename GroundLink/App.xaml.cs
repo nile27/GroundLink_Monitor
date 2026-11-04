@@ -3,24 +3,30 @@ using Microsoft.Extensions.DependencyInjection;
 using GroundLink.Services;
 using GroundLink.ViewModels;
 
-namespace GroundLink; // ← 원래 파일의 네임스페이스 유지
+namespace GroundLink;
 
 public partial class App : Application
 {
-    // 앱 시작 시 실행
+    private ServiceProvider? _provider;
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
-        // DI 컨테이너에 등록 (Nest 모듈의 providers와 같은 역할)
         var services = new ServiceCollection();
-        services.AddSingleton<ISatelliteService, FakeSatelliteService>(); // ← 나중에 Api로 교체할 줄
+        services.AddSingleton<ISatelliteService, FakeSatelliteService>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();
 
-        var provider = services.BuildServiceProvider();
+        _provider = services.BuildServiceProvider();
+        _provider.GetRequiredService<MainWindow>().Show();
+    }
 
-        // 컨테이너가 MainWindow → MainViewModel → FakeSatelliteService 순으로 알아서 만들어 넣어줌
-        provider.GetRequiredService<MainWindow>().Show();
+    // 앱 종료 시 타이머 정지, 컨테이너 정리
+    protected override void OnExit(ExitEventArgs e)
+    {
+        _provider?.GetService<ISatelliteService>()?.Stop();
+        _provider?.Dispose();
+        base.OnExit(e);
     }
 }
