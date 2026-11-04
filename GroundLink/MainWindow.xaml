@@ -1,44 +1,95 @@
 ﻿<Window x:Class="GroundLink.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:conv="clr-namespace:GroundLink.Converters"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:GroundLink"
         mc:Ignorable="d"
         Title="MainWindow" Height="450" Width="800">
-    <ScrollViewer Margin="16">
-        <!-- Satellites 컬렉션의 항목 수만큼 카드를 반복해서 그림 -->
-        <ItemsControl ItemsSource="{Binding Satellites}">
+    <Window.Resources>
+        <!-- 이 창 안에서 이름(x:Key)으로 꺼내 쓸 변환기들 -->
+        <conv:BoolToBrushConverter x:Key="ContactBrush" TrueBrush="#43A047" FalseBrush="#BDBDBD" />
+        <conv:BoolToTextConverter x:Key="ContactText" TrueText="교신 중" FalseText="교신 없음" />
+    </Window.Resources>
+    <Grid Margin="16">
+        <!-- 왼쪽: 카드 목록(남는 공간 전부) / 오른쪽: 상세 패널(280 고정) -->
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="280" />
+        </Grid.ColumnDefinitions>
 
-            <!-- 카드를 가로로 채우다 줄바꿈 -->
-            <ItemsControl.ItemsPanel>
+        <!-- 왼쪽: 위성 카드 목록 -->
+        <!-- SelectedItem: 클릭한 카드의 위성이 ViewModel의 SelectedSatellite로 들어감 -->
+        <!-- HorizontalScrollBarVisibility=Disabled: 가로 스크롤을 막아야 WrapPanel이 줄바꿈함 -->
+        <ListBox Grid.Column="0"
+             ItemsSource="{Binding Satellites}"
+             SelectedItem="{Binding SelectedSatellite}"
+             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+             BorderThickness="0">
+
+            <ListBox.ItemsPanel>
                 <ItemsPanelTemplate>
                     <WrapPanel />
                 </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
+            </ListBox.ItemsPanel>
 
-            <!-- 위성 하나(SatelliteStatus)를 어떻게 그릴지 -->
-            <ItemsControl.ItemTemplate>
+            <ListBox.ItemTemplate>
                 <DataTemplate>
                     <Border Width="180" Margin="8" Padding="12"
-                        CornerRadius="8" BorderBrush="#DDD" BorderThickness="1">
+                        CornerRadius="8" BorderThickness="2">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="BorderBrush" Value="#DDD" />
+                                <Setter Property="Background" Value="White" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsWarning}" Value="True">
+                                        <Setter Property="BorderBrush" Value="#E53935" />
+                                        <Setter Property="Background" Value="#FFEBEE" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+
                         <StackPanel>
                             <TextBlock Text="{Binding Id}" FontWeight="Bold" FontSize="16" />
                             <TextBlock Text="{Binding Battery, StringFormat='배터리: {0:F1}%'}" />
                             <TextBlock Text="{Binding Temperature, StringFormat='온도: {0:F1}°C'}" />
                             <TextBlock Text="{Binding Mode, StringFormat='모드: {0}'}" />
-                            <TextBlock Text="{Binding InContact, StringFormat='교신 중: {0}'}" />
-
-                            <Button Margin="0,8,0,0"
-        Content="모드 전환"
-        Command="{Binding DataContext.ToggleSafeModeCommand,
-                  RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-        CommandParameter="{Binding}" />
+                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                <Ellipse Width="10" Height="10" Margin="0,0,6,0" VerticalAlignment="Center"
+                                     Fill="{Binding InContact, Converter={StaticResource ContactBrush}}" />
+                                <TextBlock Text="{Binding InContact, Converter={StaticResource ContactText}}" />
+                            </StackPanel>
+                            <Button Margin="0,8,0,0" Content="모드 전환"
+                                Command="{Binding DataContext.ToggleSafeModeCommand,
+                                          RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                CommandParameter="{Binding}" />
                         </StackPanel>
                     </Border>
                 </DataTemplate>
-            </ItemsControl.ItemTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
 
-        </ItemsControl>
-    </ScrollViewer>
+        <!-- 오른쪽: 선택된 위성 상세 패널 -->
+        <Border Grid.Column="1" Margin="16,0,0,0" Padding="16"
+            CornerRadius="8" BorderBrush="#DDD" BorderThickness="1">
+            <StackPanel>
+                <!-- FallbackValue: 선택이 없어서(null) 값을 못 찾을 때 대신 보여줄 글자 -->
+                <TextBlock FontSize="20" FontWeight="Bold"
+                       Text="{Binding SelectedSatellite.Id, FallbackValue='위성을 선택하세요'}" />
+
+                <TextBlock Margin="0,12,0,0"
+                       Text="{Binding SelectedSatellite.Battery, StringFormat='배터리: {0:F1}%', FallbackValue=''}" />
+                <TextBlock Text="{Binding SelectedSatellite.Temperature, StringFormat='온도: {0:F1}°C', FallbackValue=''}" />
+                <TextBlock Text="{Binding SelectedSatellite.Mode, StringFormat='모드: {0}', FallbackValue=''}" />
+                <TextBlock Text="{Binding SelectedSatellite.InContact, Converter={StaticResource ContactText}, FallbackValue=''}" />
+
+                <!-- 선택이 없으면 CanExecute가 false라서 자동으로 비활성화 -->
+                <Button Margin="0,16,0,0" Content="모드 전환"
+                    Command="{Binding ToggleSafeModeCommand}"
+                    CommandParameter="{Binding SelectedSatellite}" />
+            </StackPanel>
+        </Border>
+    </Grid>
 </Window>

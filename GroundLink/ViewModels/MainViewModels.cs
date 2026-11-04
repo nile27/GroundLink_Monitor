@@ -27,13 +27,21 @@ public partial class MainViewModel : ObservableObject
         _service.Start();
     }
 
+    [ObservableProperty]
+    private SatelliteStatus? selectedSatellite;
+
     // [RelayCommand]: 이 메서드를 버튼에 연결할 수 있는 ToggleSafeModeCommand 속성을 자동 생성
     // (메서드 이름 끝의 Async는 빠지고 Command가 붙음)
-    [RelayCommand]
-    private async Task ToggleSafeModeAsync(SatelliteStatus satellite)
+    // CanExecute: 이 조건이 false면 버튼이 자동으로 비활성화(회색)됨
+    [RelayCommand(CanExecute = nameof(CanToggleSafeMode))]
+    private async Task ToggleSafeModeAsync(SatelliteStatus? satellite)
     {
-        // 지금 SAFE면 NORMAL로, 아니면 SAFE로
+        if (satellite is null) return;
+
         var next = satellite.Mode == "SAFE" ? "NORMAL" : "SAFE";
         await _service.SetModeAsync(satellite.Id, next);
     }
+
+    // 위성이 넘어왔을 때만 실행 가능
+    private bool CanToggleSafeMode(SatelliteStatus? satellite) => satellite is not null;
 }
