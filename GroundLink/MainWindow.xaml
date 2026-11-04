@@ -24,11 +24,13 @@
             </Grid.RowDefinitions>
 
             <!-- 카드 목록 -->
-            <ListBox Grid.Row="0"
-                     ItemsSource="{Binding Satellites}"
-                     SelectedItem="{Binding SelectedSatellite}"
-                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                     BorderThickness="0">
+            <ListBox 
+                x:Name="SatelliteList"
+                Grid.Row="0"
+         ItemsSource="{Binding Satellites}"
+         SelectedItem="{Binding SelectedSatellite}"
+         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+         BorderThickness="0">
                 <ListBox.ItemsPanel>
                     <ItemsPanelTemplate>
                         <WrapPanel />

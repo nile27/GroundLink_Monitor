@@ -21,10 +21,10 @@ public class FakeSatelliteService : ISatelliteService
     public event EventHandler? Updated;
     public event EventHandler<AlarmEvent>? AlarmRaised;
 
-    public FakeSatelliteService()
+    public FakeSatelliteService(int count  = 10)
     {
         // 위성 10대 생성
-        for (int i = 1; i <= 10; i++)
+        for (int i = 1; i <= count; i++)
         {
             _satellites.Add(new SatelliteStatus
             {
