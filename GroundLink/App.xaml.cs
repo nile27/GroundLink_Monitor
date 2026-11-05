@@ -6,19 +6,18 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Threading;
-using GroundLink.Data;
 
 namespace GroundLink;
 
 public partial class App : Application
 {
-    // 측정할 위성 수 (10 → 1000 → 3000 바꿔가며 측정)
+    
     private const int SatelliteCount = 10;
 
     // 측정 결과를 출력 창 + 파일 둘 다에 기록
     private static readonly string LogPath = Path.Combine(AppContext.BaseDirectory, "measure.log");
 
-    private static void Log(string message)
+    internal static void Log(string message)
     {
         var line = $"{DateTime.Now:HH:mm:ss} {message}";
         Debug.WriteLine(line);
@@ -35,7 +34,9 @@ public partial class App : Application
         // ① DI 등록
         var services = new ServiceCollection();
         services.AddSingleton<ISatelliteService>(_ => new FakeSatelliteService(SatelliteCount));
-        services.AddSingleton<ITelemetryRepository, SqlTelemetryRepository>();
+        //services.AddSingleton<ITelemetryRepository, SqlTelemetryRepository>();
+        services.AddSingleton<ITelemetryRepository>(_ =>
+    new SqlTelemetryRepository(SqlTelemetryRepository.SaveMode.BulkCopy));
         services.AddSingleton<TelemetryRecorder>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();
