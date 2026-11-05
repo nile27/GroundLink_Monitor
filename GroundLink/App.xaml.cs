@@ -1,10 +1,12 @@
-﻿using System.IO;
-using System.Diagnostics;
-using System.Windows;
-using System.Windows.Threading;
-using Microsoft.Extensions.DependencyInjection;
+﻿using GroundLink.Data;
 using GroundLink.Services;
 using GroundLink.ViewModels;
+using Microsoft.Extensions.DependencyInjection;
+using System.Diagnostics;
+using System.IO;
+using System.Windows;
+using System.Windows.Threading;
+using GroundLink.Data;
 
 namespace GroundLink;
 
@@ -30,25 +32,33 @@ public partial class App : Application
         base.OnStartup(e);
         var sw = Stopwatch.StartNew();
 
+        // ① DI 등록
         var services = new ServiceCollection();
-        // 생성자에 위성 수를 넘기려고 직접 만들어서 등록
         services.AddSingleton<ISatelliteService>(_ => new FakeSatelliteService(SatelliteCount));
+        services.AddSingleton<ITelemetryRepository, SqlTelemetryRepository>();
+        services.AddSingleton<TelemetryRecorder>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();
         _provider = services.BuildServiceProvider();
 
+        // ② 기록기 시작 ← 여기!
+        _provider.GetRequiredService<TelemetryRecorder>();
+
+        // ③ 창 만들기 + 측정
         var window = _provider.GetRequiredService<MainWindow>();
 
-        // [측정 1] 첫 화면이 다 그려진 순간
-        window.Dispatcher.BeginInvoke(() =>
+        window.ContentRendered += (_, _) =>
         {
-            var mb = Process.GetCurrentProcess().WorkingSet64 / 1024 / 1024;
-            var actual = _provider!.GetRequiredService<MainViewModel>().Satellites.Count;
-            var cards = window.CountRealizedCards();
-            Log($"[측정] 실제 {actual}대 / 만들어진 카드 {cards}장 / 화면 준비 완료: {sw.ElapsedMilliseconds} ms / 메모리: {mb} MB");
-        }, DispatcherPriority.ApplicationIdle);
+            Log($"[측정] 위성 {SatelliteCount}대 / 첫 프레임: {sw.ElapsedMilliseconds} ms");
 
-
+            window.Dispatcher.BeginInvoke(() =>
+            {
+                var mb = Process.GetCurrentProcess().WorkingSet64 / 1024 / 1024;
+                var actual = _provider!.GetRequiredService<MainViewModel>().Satellites.Count;
+                var cards = window.CountRealizedCards();
+                Log($"[측정] 실제 {actual}대 / 만들어진 카드 {cards}장 / 화면 준비 완료: {sw.ElapsedMilliseconds} ms / 메모리: {mb} MB");
+            }, DispatcherPriority.ApplicationIdle);
+        };
 
         window.Show();
         StartUiLagProbe();
