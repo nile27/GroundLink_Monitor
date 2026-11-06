@@ -41,10 +41,16 @@
             </Border>
 
             <Border>
-                <StackPanel>
-                    <TextBlock Text="SAFE 모드" Foreground="Gray" FontSize="12" />
-                    <TextBlock Text="{Binding SafeCount}" FontSize="24" FontWeight="Bold" Foreground="#FB8C00" />
-                </StackPanel>
+                <DockPanel>
+                    <!-- SAFE 위성에 NORMAL 명령. SAFE가 0대면 CanExecute가 false라 자동 비활성화 -->
+                    <Button DockPanel.Dock="Right" VerticalAlignment="Center" Padding="10,4"
+                            Content="SAFE 전체 복귀"
+                            Command="{Binding RestoreAllSafeCommand}" />
+                    <StackPanel>
+                        <TextBlock Text="SAFE 모드" Foreground="Gray" FontSize="12" />
+                        <TextBlock Text="{Binding SafeCount}" FontSize="24" FontWeight="Bold" Foreground="#FB8C00" />
+                    </StackPanel>
+                </DockPanel>
             </Border>
 
             <!-- 마지막 칸은 오른쪽 여백 없음 -->

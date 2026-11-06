@@ -21,6 +21,9 @@ public interface ISatelliteService
     void Start();
     void Stop();
 
-    /// <summary>위성 모드 변경 명령 (나중에 서버 POST /satellites/{id}/commands로 교체)</summary>
+    /// <summary>
+    /// 위성 모드 변경 명령. 위성이 처리를 마치면 끝난다.
+    /// 실패(서버 오류, 위성 거부, 시간 초과)하면 예외를 던진다 → 호출한 쪽이 화면을 되돌림.
+    /// </summary>
     Task SetModeAsync(string satelliteId, string mode);
 }

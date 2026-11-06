@@ -20,12 +20,23 @@ public class ApiSatelliteService : ISatelliteService, IDisposable
 {
     private const int AlarmFetchLimit = 50; // 한 번에 가져올 최근 알람 수
 
+    // 명령 결과(ack) 기다리기: 서버의 ack 타임아웃(기본 10초)보다 조금 길게
+    private static readonly TimeSpan AckWaitLimit = TimeSpan.FromSeconds(12);
+    private static readonly TimeSpan AckPollInterval = TimeSpan.FromMilliseconds(100);
+
+    // 명령 성공 후, 서버 텔레메트리가 새 모드를 보여줄 때까지 화면 값을 지키는 시간.
+    // 시뮬레이터는 ack는 바로 보내지만 새 모드가 담긴 텔레메트리는 다음 주기(1초)에 보낸다.
+    private static readonly TimeSpan ModeHoldAfterAck = TimeSpan.FromSeconds(5);
+
     // 서버 JSON은 camelCase (battery, latestTelemetry ...) → Web 기본값이 대소문자를 맞춰줌
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly HttpClient _http;
     private readonly List<SatelliteStatus> _satellites = new();
     private readonly Dictionary<string, SatelliteStatus> _byId = new();
+
+    // 명령을 보낸 위성: 서버 값이 새 모드로 바뀌기 전까지 옛 모드로 덮어쓰지 않음 (위성 id → 기다리는 모드, 기한)
+    private readonly Dictionary<string, (string Mode, DateTime Until)> _pendingModes = new();
 
     // DispatcherTimer + ConfigureAwait 없는 await:
     // 응답을 받은 뒤 UI 스레드로 돌아와서 값을 바꾸므로 화면 바인딩이 안전하다.
@@ -40,22 +51,28 @@ public class ApiSatelliteService : ISatelliteService, IDisposable
     public event EventHandler? Updated;
     public event EventHandler<AlarmEvent>? AlarmRaised;
 
+    /// <summary>실제 서버(ApiSettings.BaseUrl)에 연결</summary>
     public ApiSatelliteService()
-    {
-        _http = new HttpClient
+        : this(new HttpClient
         {
             BaseAddress = new Uri(ApiSettings.BaseUrl),
             Timeout = ApiSettings.RequestTimeout
-        };
+        })
+    {
+    }
 
+    /// <summary>HttpClient를 직접 넣는 생성자 (테스트에서 가짜 응답을 넣을 때 사용)</summary>
+    public ApiSatelliteService(HttpClient http)
+    {
+        _http = http;
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        _timer.Tick += async (_, _) => await PollAsync();
+        _timer.Tick += async (_, _) => await RefreshAsync();
     }
 
     public void Start()
     {
         _timer.Start();
-        _ = PollAsync(); // 1초 기다리지 않고 바로 한 번
+        _ = RefreshAsync(); // 1초 기다리지 않고 바로 한 번
     }
 
     public void Stop() => _timer.Stop();
@@ -66,29 +83,70 @@ public class ApiSatelliteService : ISatelliteService, IDisposable
         _http.Dispose();
     }
 
+    // ───────── 명령 ─────────
+
     /// <summary>
-    /// 모드 변경 명령. 서버는 202(접수)만 돌려주고, 실제 모드는 위성이 처리한 뒤
-    /// 다음 텔레메트리로 바뀌어 들어온다. 그래서 여기서 화면 값을 직접 바꾸지 않는다.
+    /// 모드 변경 명령을 보내고, 위성이 처리한 결과(ack)까지 기다린다.
+    /// 성공하면 바로 서버 값을 한 번 다시 읽는다.
+    /// 실패(서버 오류, 위성 거부, 시간 초과)하면 예외를 던진다 → ViewModel이 화면 모드를 되돌림.
     /// </summary>
     public async Task SetModeAsync(string satelliteId, string mode)
     {
+        // 결과를 기다리는 동안 1초 조회가 옛 모드로 덮어쓰지 않게 표시
+        _pendingModes[satelliteId] = (mode, DateTime.Now + AckWaitLimit);
+
         try
         {
-            var body = new CommandRequest("SET_MODE", mode);
-            using var res = await _http.PostAsJsonAsync(
-                $"satellites/{Uri.EscapeDataString(satelliteId)}/commands", body, JsonOptions);
+            var path = $"satellites/{Uri.EscapeDataString(satelliteId)}/commands";
+
+            // 1) 명령 접수 (서버는 202 + PENDING 상태의 명령을 돌려줌)
+            using var res = await _http.PostAsJsonAsync(path, new CommandRequest("SET_MODE", mode), JsonOptions);
             res.EnsureSuccessStatusCode();
+            var sent = await res.Content.ReadFromJsonAsync<CommandDto>(JsonOptions)
+                       ?? throw new InvalidOperationException("명령 응답이 비어 있음");
+
+            // 2) 위성의 처리 결과(ack) 기다리기. 보통 수 ms 안에 옴
+            var result = await WaitForAckAsync(path, sent.Id);
+            if (result.Status != "SUCCESS")
+                throw new InvalidOperationException($"{result.Status}: {result.ResultMessage ?? "응답 없음"}");
+
+            // 3) 성공: 새 텔레메트리가 올 때까지 잠깐 화면 값을 지키고, 바로 한 번 다시 읽기
+            _pendingModes[satelliteId] = (mode, DateTime.Now + ModeHoldAfterAck);
+            await RefreshAsync();
         }
         catch (Exception ex)
         {
-            // 버튼 명령에서 예외가 새어 나가면 앱이 죽으므로 여기서 막는다
+            _pendingModes.Remove(satelliteId); // 실패했으니 서버 값을 그대로 따른다
             PerfLog.Write($"[API] 명령 실패 {satelliteId} → {mode}: {ex.Message}");
+            throw;
+        }
+    }
+
+    /// <summary>명령 이력을 짧은 간격으로 조회해서 PENDING이 끝날 때까지 기다린다</summary>
+    private async Task<CommandDto> WaitForAckAsync(string path, string commandId)
+    {
+        var deadline = DateTime.Now + AckWaitLimit;
+        while (true)
+        {
+            var list = await _http.GetFromJsonAsync<List<CommandDto>>($"{path}?limit=20", JsonOptions);
+            var cmd = list?.FirstOrDefault(c => c.Id == commandId);
+            if (cmd is not null && cmd.Status != "PENDING")
+                return cmd;
+
+            if (DateTime.Now > deadline)
+                throw new TimeoutException("명령 결과(ack)를 받지 못함");
+
+            await Task.Delay(AckPollInterval);
         }
     }
 
     // ───────── 주기 조회 ─────────
 
-    private async Task PollAsync()
+    /// <summary>
+    /// 서버에서 위성 목록과 알람을 한 번 읽어 반영한다 (1초 타이머가 호출, 명령 직후에도 호출).
+    /// 실패해도 예외를 밖으로 내보내지 않는다.
+    /// </summary>
+    public async Task RefreshAsync()
     {
         if (_polling) return;
         _polling = true;
@@ -144,9 +202,29 @@ public class ApiSatelliteService : ISatelliteService, IDisposable
 
             sat.Battery = t.Battery;
             sat.Temperature = t.Temp;
-            sat.Mode = t.Mode;
             sat.InContact = t.Rssi is not null; // 서버엔 교신 칸이 없음. RSSI가 있으면 교신 중
+
+            if (ShouldKeepScreenMode(dto.Id, t.Mode))
+                continue; // 명령 결과가 아직 텔레메트리에 안 실림 → 화면 모드 유지
+            sat.Mode = t.Mode;
         }
+    }
+
+    /// <summary>
+    /// 명령을 보낸 위성인데 서버 값이 아직 옛 모드면 true.
+    /// 서버가 새 모드를 보여주거나 기한이 지나면 표시를 지우고 서버 값을 따른다.
+    /// </summary>
+    private bool ShouldKeepScreenMode(string satelliteId, string serverMode)
+    {
+        if (!_pendingModes.TryGetValue(satelliteId, out var pending))
+            return false;
+
+        if (serverMode == pending.Mode || DateTime.Now > pending.Until)
+        {
+            _pendingModes.Remove(satelliteId);
+            return false;
+        }
+        return true;
     }
 
     /// <summary>
@@ -189,4 +267,6 @@ public class ApiSatelliteService : ISatelliteService, IDisposable
     private record AlarmDto(string Id, string SatId, DateTime Ts, string Message);
 
     private record CommandRequest(string Type, string Mode);
+
+    private record CommandDto(string Id, string Status, string? ResultMessage);
 }

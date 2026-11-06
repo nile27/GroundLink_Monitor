@@ -80,8 +80,9 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private int warningCount;
 
-    /// <summary>SAFE 모드 위성 수</summary>
+    /// <summary>SAFE 모드 위성 수. 바뀌면 "SAFE 전체 복귀" 버튼 활성 여부도 다시 계산</summary>
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(RestoreAllSafeCommand))]
     private int safeCount;
 
     /// <summary>교신 중인 위성 수</summary>
@@ -131,10 +132,47 @@ public partial class MainViewModel : ObservableObject
         if (satellite is null) return;
 
         var next = satellite.Mode == SatelliteMode.Safe ? SatelliteMode.Normal : SatelliteMode.Safe;
-        await _service.SetModeAsync(satellite.Id, next);
+        await ChangeModeAsync(satellite, next);
     }
 
     private bool CanToggleSafeMode(SatelliteStatus? satellite) => satellite is not null;
+
+    /// <summary>
+    /// "SAFE 전체 복귀" 버튼: SAFE인 위성들에만 NORMAL 명령을 동시에 보낸다.
+    /// 배터리 부족 위성은 위성이 거부할 수 있고, 그 위성만 SAFE로 되돌아간다.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanRestoreAllSafe))]
+    private async Task RestoreAllSafeAsync()
+    {
+        var targets = Satellites.Where(s => s.Mode == SatelliteMode.Safe).ToList();
+        await Task.WhenAll(targets.Select(s => ChangeModeAsync(s, SatelliteMode.Normal)));
+    }
+
+    private bool CanRestoreAllSafe() => SafeCount > 0;
+
+    /// <summary>
+    /// 모드 변경 (낙관적 업데이트).
+    /// 서버 응답을 기다리지 않고 화면 모드를 먼저 바꾸고, 명령이 실패하면 원래 모드로 되돌린다.
+    /// </summary>
+    private async Task ChangeModeAsync(SatelliteStatus satellite, string mode)
+    {
+        var previous = satellite.Mode;
+
+        satellite.Mode = mode; // ① 화면 먼저
+        UpdateSummary();       //    요약 바도 바로
+
+        try
+        {
+            await _service.SetModeAsync(satellite.Id, mode); // ② 실제 명령
+        }
+        catch (Exception ex)
+        {
+            satellite.Mode = previous; // ③ 실패 → 되돌리기 + 알람 표에 기록
+            UpdateSummary();
+            AddAlarm(new AlarmEvent(DateTime.Now, satellite.Id, $"명령 실패: {mode} 전환 ({ex.Message})"));
+            PerfLog.Write($"[명령] {satellite.Id} → {mode} 실패, {previous}로 되돌림: {ex.Message}");
+        }
+    }
 
     // ═════════ ⑥ 차트 ═════════
 
@@ -253,7 +291,9 @@ public partial class MainViewModel : ObservableObject
 
     // ═════════ ⑦ 알람 ═════════
 
-    private void OnAlarmRaised(object? sender, AlarmEvent alarm)
+    private void OnAlarmRaised(object? sender, AlarmEvent alarm) => AddAlarm(alarm);
+
+    private void AddAlarm(AlarmEvent alarm)
     {
         Alarms.Insert(0, alarm);                 // 최신 알람을 맨 위에
         if (Alarms.Count > MaxAlarms)
