@@ -154,10 +154,24 @@ public partial class MainViewModel : ObservableObject
 
     private void OnServiceUpdated(object? sender, EventArgs e)
     {
+        AddNewSatellites();
         UpdateSummary(); // 요약 바는 매초 갱신
 
         if (++_tick % ChartRefreshTicks == 0)
             _ = ReloadChartAsync();
+    }
+
+    /// <summary>
+    /// 서비스 목록에 새로 생긴 위성을 화면 목록에 추가.
+    /// 서버 연결 시엔 처음에 비어 있다가 나중에 채워지기 때문.
+    /// 서비스는 새 위성을 항상 목록 끝에 붙이므로, 화면 목록보다 늘어난 부분만 가져온다
+    /// (위성 1만 대여도 매초 전체를 비교하지 않음).
+    /// </summary>
+    private void AddNewSatellites()
+    {
+        var source = _service.Satellites;
+        for (int i = Satellites.Count; i < source.Count; i++)
+            Satellites.Add(source[i]);
     }
 
     /// <summary>상단 요약 바 숫자를 현재 위성 상태로 다시 센다</summary>

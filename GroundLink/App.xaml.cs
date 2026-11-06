@@ -15,6 +15,9 @@ public partial class App : Application
 {
     private const int SatelliteCount = 10; // 가짜 위성 수
 
+    // true: 백엔드 서버(ApiSettings.BaseUrl)에서 위성 데이터를 받음 / false: 가짜 위성 서비스
+    private const bool UseServer = true;
+
     private ServiceProvider? _provider;
 
     protected override void OnStartup(StartupEventArgs e)
@@ -24,7 +27,9 @@ public partial class App : Application
 
         // ① DI 등록 (Nest 모듈의 providers와 같은 역할)
         var services = new ServiceCollection();
-        services.AddSingleton<ISatelliteService>(_ => new FakeSatelliteService(SatelliteCount)); // 나중에 서버 연결 버전으로 교체할 줄
+        services.AddSingleton<ISatelliteService>(_ => UseServer
+            ? new ApiSatelliteService()                      // 서버 연결
+            : new FakeSatelliteService(SatelliteCount));     // 서버 없이 개발
         services.AddSingleton<ITelemetryRepository, SqlTelemetryRepository>();
         services.AddSingleton<TelemetryRecorder>();
         services.AddSingleton<MainViewModel>();
@@ -37,7 +42,7 @@ public partial class App : Application
 
         // ③ 메인 창 (MainWindow → MainViewModel → 서비스·저장소 순으로 컨테이너가 알아서 만듦)
         var window = _provider.GetRequiredService<MainWindow>();
-        PerfLog.TrackStartup(window, SatelliteCount); // Show() 전에 걸어야 첫 프레임을 놓치지 않음
+        PerfLog.TrackStartup(window, UseServer ? $"서버 {ApiSettings.BaseUrl}" : $"가짜 위성 {SatelliteCount}대"); // Show() 전에 걸어야 첫 프레임을 놓치지 않음
         window.Show();
 
         // ④ 개발용 UI 지연 측정 (Release 빌드에선 자동으로 빠짐)

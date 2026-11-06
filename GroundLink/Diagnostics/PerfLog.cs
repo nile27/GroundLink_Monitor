@@ -66,11 +66,12 @@ public static class PerfLog
     /// 창을 Show() 하기 전에 호출해야 ContentRendered를 놓치지 않는다.
     /// </summary>
     [Conditional("DEBUG")]
-    public static void TrackStartup(Window window, int satelliteCount)
+    /// <param name="source">데이터 출처 설명 (예: "가짜 위성 10대", "서버")</param>
+    public static void TrackStartup(Window window, string source)
     {
         window.ContentRendered += (_, _) =>
         {
-            Write($"[측정] 위성 {satelliteCount}대 / 첫 프레임: {StartupWatch.ElapsedMilliseconds} ms");
+            Write($"[측정] {source} / 첫 프레임: {StartupWatch.ElapsedMilliseconds} ms");
 
             // ApplicationIdle: 그리기·바인딩 등 할 일을 다 끝내고 한가해졌을 때 실행됨
             window.Dispatcher.BeginInvoke(() =>
