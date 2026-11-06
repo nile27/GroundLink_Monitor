@@ -1,32 +1,18 @@
-﻿using System.Windows;
+using System.Windows;
 using GroundLink.ViewModels;
 
+namespace GroundLink;
 
-
-namespace GroundLink
+/// <summary>
+/// 메인 창. 화면 코드는 여기 두지 않고, ViewModel을 DataContext로 연결만 한다.
+/// </summary>
+public partial class MainWindow : Window
 {
-    /// <summary>
-    /// Interaction logic for MainWindow.xaml
-    /// </summary>
-    public partial class MainWindow : Window
+    public MainWindow(MainViewModel viewModel)
     {
+        InitializeComponent();
 
-        public int CountRealizedCards()
-        {
-            int count = 0;
-            for (int i = 0; i < SatelliteList.Items.Count; i++)
-            {
-                if (SatelliteList.ItemContainerGenerator.ContainerFromIndex(i) != null)
-                    count++;
-            }
-            return count;
-        }
-        public MainWindow(MainViewModel viewModel)
-        {
-            InitializeComponent();
-            DataContext = viewModel;
-        }
-
-
+        // XAML의 {Binding ...}이 이 ViewModel의 속성을 찾아가게 됨
+        DataContext = viewModel;
     }
 }
