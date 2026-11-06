@@ -21,8 +21,11 @@ CREATE TABLE dbo.Telemetry (
 );
 
 -- 차트 조회용: "위성 하나의 특정 기간" 조회를 빠르게
+-- INCLUDE (Battery): 차트가 읽는 Battery까지 인덱스에 담아, 원본 테이블을 다시 읽지 않게 함
+-- (기존 DB는 002_telemetry_index_include_battery.sql 로 변경)
 CREATE INDEX IX_Telemetry_Satellite_Time
-    ON dbo.Telemetry (SatelliteId, RecordedAt);
+    ON dbo.Telemetry (SatelliteId, RecordedAt)
+    INCLUDE (Battery);
 
 -- 알람
 CREATE TABLE dbo.Alarm (
