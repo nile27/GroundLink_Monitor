@@ -77,4 +77,16 @@ public class MainViewModelTests
 
         Assert.Equal(100, vm.Alarms.Count);
     }
+
+    [Fact]
+    public void 요약은_경고_위성_수를_센다()
+    {
+        var (stub, vm) = CreateVm();
+        stub.Items[1].Battery = 10; // 경고 상태
+
+        stub.FireUpdated();
+
+        Assert.Equal(2, vm.TotalCount);
+        Assert.Equal(1, vm.WarningCount);
+    }
 }

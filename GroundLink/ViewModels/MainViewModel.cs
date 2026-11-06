@@ -70,6 +70,24 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string chartInfo = "";
 
+    // 상단 요약 바 (1초마다 UpdateSummary()로 갱신)
+
+    /// <summary>전체 위성 수</summary>
+    [ObservableProperty]
+    private int totalCount;
+
+    /// <summary>경고 위성 수 (SAFE 또는 배터리 부족)</summary>
+    [ObservableProperty]
+    private int warningCount;
+
+    /// <summary>SAFE 모드 위성 수</summary>
+    [ObservableProperty]
+    private int safeCount;
+
+    /// <summary>교신 중인 위성 수</summary>
+    [ObservableProperty]
+    private int contactCount;
+
     // ═════════ ④ 생성자 ═════════
 
     /// <summary>
@@ -97,6 +115,7 @@ public partial class MainViewModel : ObservableObject
         _service.Updated += OnServiceUpdated;    // 1초마다 → 주기적으로 차트 새로고침
         _service.AlarmRaised += OnAlarmRaised;   // 알람 → 표에 추가
 
+        UpdateSummary(); // 첫 갱신 전에도 요약 바가 비어 보이지 않게
         _service.Start();
     }
 
@@ -135,8 +154,19 @@ public partial class MainViewModel : ObservableObject
 
     private void OnServiceUpdated(object? sender, EventArgs e)
     {
+        UpdateSummary(); // 요약 바는 매초 갱신
+
         if (++_tick % ChartRefreshTicks == 0)
             _ = ReloadChartAsync();
+    }
+
+    /// <summary>상단 요약 바 숫자를 현재 위성 상태로 다시 센다</summary>
+    private void UpdateSummary()
+    {
+        TotalCount = Satellites.Count;
+        WarningCount = Satellites.Count(s => s.IsWarning);
+        SafeCount = Satellites.Count(s => s.Mode == SatelliteMode.Safe);
+        ContactCount = Satellites.Count(s => s.InContact);
     }
 
     /// <summary>
