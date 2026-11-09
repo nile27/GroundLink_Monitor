@@ -12,7 +12,7 @@ DECLARE @start DATETIME2(3) = DATEADD(DAY, -1, SYSDATETIME());
 
 INSERT INTO dbo.Telemetry (SatelliteId, RecordedAt, Battery, Temperature, Mode, InContact)
 SELECT
-    'SAT-' + RIGHT('0000' + CAST(sat.value AS VARCHAR(4)), 4),            -- SAT-0001 ~ SAT-0100
+    'SAT-' + RIGHT('000' + CAST(sat.value AS VARCHAR(3)), 3),            -- SAT-001 ~ SAT-100
     DATEADD(SECOND, sec.value, @start),                                    -- 1초 간격
     60 + 30 * SIN(2 * PI() * (sec.value + sat.value * 300) / 5400.0),      -- 배터리: 90분 주기 물결
     10 + 15 * SIN(2 * PI() * (sec.value + sat.value * 300) / 5400.0),      -- 온도: 같은 주기
