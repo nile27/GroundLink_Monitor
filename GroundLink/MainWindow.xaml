@@ -1,12 +1,19 @@
-﻿<Window x:Class="GroundLink.MainWindow"
+﻿<!-- TODO B-1: 아래 <Window ... 줄들 중 Title 다음에 Loaded="Window_Loaded" 추가 -->
+<Window x:Class="GroundLink.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:GroundLink"
-        mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Grid>
-
-    </Grid>
+        Title="관제 테스트" Height="300" Width="500">
+    <StackPanel Margin="20">
+        <!-- TODO C (선택): 버튼 글자를 "최신 값 조회"로 바꾸기 -->
+        <Button x:Name="TestButton"
+                Content="DB 연결 테스트"
+                Width="150"
+                HorizontalAlignment="Left"
+                Click="TestButton_Click"/>
+        <TextBlock x:Name="ResultText"
+                  Text="ㅎㅇ"
+                   Margin="0,15,0,0"
+                   TextWrapping="Wrap"/>
+        <TextBlock x:Name="MyInput"/>
+    </StackPanel>
 </Window>
