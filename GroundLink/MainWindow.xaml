@@ -2,19 +2,43 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ScottPlot="clr-namespace:ScottPlot.WPF;assembly=ScottPlot.WPF"
-        Title="관제 테스트" Height="700" Width="900"
+        Title="관제 테스트" Height="800" Width="900"
         Loaded="Window_Loaded">
     <StackPanel Margin="20">
-        <Button x:Name="TestButton"
-                Content="최신 값 조회"
-                Width="150"
-                HorizontalAlignment="Left"
-                Click="TestButton_Click"/>
-        <TextBlock x:Name="ResultText"
+        <StackPanel Orientation="Horizontal">
+            <Button x:Name="TestButton"
+                    Content="최신 값 조회"
+                    Width="150"
+                    Margin="0,0,8,0"
+                    Click="TestButton_Click"/>
+            <Button x:Name="ConnectButton"
+                    Content="시뮬레이터 연결"
+                    Width="150"
+                    Click="ConnectButton_Click"/>
+        </StackPanel>
+
+        <!-- 연결 상태 (5단계) -->
+        <TextBlock x:Name="LiveText"
                    Margin="0,15,0,0"
+                   Text="실시간: 연결 안 됨"/>
+
+        <!-- ① 현재 값 (5-3: 실시간 수신 값) -->
+        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+            <TextBlock x:Name="BatteryText"
+                       FontSize="20"
+                       Width="260"
+                       Text="배터리: -"/>
+            <TextBlock x:Name="TemperatureText"
+                       FontSize="20"
+                       Text="배터리 온도: -"/>
+        </StackPanel>
+
+        <!-- DB 조회 결과, 차트 요약 -->
+        <TextBlock x:Name="ResultText"
+                   Margin="0,10,0,0"
                    TextWrapping="Wrap"/>
 
-        <!-- ③ 기간 버튼: 가로로 나란히 -->
+        <!-- ③ 기간 버튼 -->
         <StackPanel Orientation="Horizontal" Margin="0,15,0,0">
             <Button Content="1시간" Width="80" Margin="0,0,8,0" Click="HourButton_Click"/>
             <Button Content="1일"   Width="80" Margin="0,0,8,0" Click="DayButton_Click"/>
