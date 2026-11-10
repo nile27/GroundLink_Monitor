@@ -1,19 +1,28 @@
-﻿<!-- TODO B-1: 아래 <Window ... 줄들 중 Title 다음에 Loaded="Window_Loaded" 추가 -->
-<Window x:Class="GroundLink.MainWindow"
+﻿<Window x:Class="GroundLink.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="관제 테스트" Height="300" Width="500">
+        xmlns:ScottPlot="clr-namespace:ScottPlot.WPF;assembly=ScottPlot.WPF"
+        Title="관제 테스트" Height="700" Width="900"
+        Loaded="Window_Loaded">
     <StackPanel Margin="20">
-        <!-- TODO C (선택): 버튼 글자를 "최신 값 조회"로 바꾸기 -->
         <Button x:Name="TestButton"
-                Content="DB 연결 테스트"
+                Content="최신 값 조회"
                 Width="150"
                 HorizontalAlignment="Left"
                 Click="TestButton_Click"/>
         <TextBlock x:Name="ResultText"
-                  Text="ㅎㅇ"
                    Margin="0,15,0,0"
                    TextWrapping="Wrap"/>
-        <TextBlock x:Name="MyInput"/>
+
+        <!-- ③ 기간 버튼: 가로로 나란히 -->
+        <StackPanel Orientation="Horizontal" Margin="0,15,0,0">
+            <Button Content="1시간" Width="80" Margin="0,0,8,0" Click="HourButton_Click"/>
+            <Button Content="1일"   Width="80" Margin="0,0,8,0" Click="DayButton_Click"/>
+            <Button Content="1주일" Width="80" Click="WeekButton_Click"/>
+        </StackPanel>
+
+        <ScottPlot:WpfPlot x:Name="MyPlot"
+                           Height="450"
+                           Margin="0,10,0,0"/>
     </StackPanel>
 </Window>
