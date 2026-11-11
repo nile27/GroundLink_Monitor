@@ -5,11 +5,20 @@ using Microsoft.Data.SqlClient;
 namespace GroundLink.Data;
 
 /*
- * 텔레메트리 DB 조회 (MonitorDB.dbo.Telemetry).
- * 화면을 모름: 조회 결과만 돌려주고, 오류는 호출한 쪽에서 처리.
+ * 텔레메트리 DB 조회·저장 (MonitorDB.dbo.Telemetry).
+ * 화면을 모름: 결과만 돌려주고, 오류는 호출한 쪽에서 처리.
+ *
+ * 1. 저장: 여러 건을 연결 1번·트랜잭션 1번으로
+ * 2. 최신 값: 최신 1건
+ * 3. 과거 기록 (짧은 기간): 분 단위 평균·최소·최대
+ * 4. 과거 기록 (긴 기간): 궤도 1바퀴 단위 평균·최소·최대
  */
 public class TelemetryRepository
 {
+    // 궤도 주기와 위상 기준. 시뮬레이터·02_seed_week.sql과 같은 값이어야 구간이 바퀴와 맞음
+    private const int OrbitPeriodSeconds = 5669;
+    private static readonly DateTime OrbitEpoch = new(2026, 1, 1);
+
     private readonly string connectionString;
 
     public TelemetryRepository(string connectionString)
@@ -128,10 +137,6 @@ public class TelemetryRepository
             GROUP BY Bucket
             ORDER BY Bucket;";
 
-        // 결과 줄 수를 모르므로 List
-        var battery = new List<SummaryPoint>();
-        var temperature = new List<SummaryPoint>();
-
         using var conn = new SqlConnection(connectionString);
         conn.Open();
 
@@ -139,6 +144,56 @@ public class TelemetryRepository
         cmd.Parameters.Add("@satelliteId", SqlDbType.VarChar, 16).Value = satelliteId;
         cmd.Parameters.AddWithValue("@bucket", bucketMinutes);   // 값은 문자열 연결 대신 파라미터로
         cmd.Parameters.AddWithValue("@hours", hours);
+
+        return ReadSummary(cmd);
+    }
+
+    /// <summary>
+    /// 최근 hours 시간을 궤도 1바퀴 단위로 요약. 바퀴마다 1줄 (최소 = 그늘 끝, 최대 = 햇빛 끝).
+    /// 시간 구간(30분 등)은 궤도 주기(94.5분)와 안 맞아서 구간마다 바퀴의 다른 부분이 잡혀 들쭉날쭉해짐.
+    /// </summary>
+    public HistorySummary GetOrbitSummary(string satelliteId, int hours)
+    {
+        // DATE_BUCKET 4번째 값 = 기준점. 위상 기준에서 주기만큼씩 자르므로 구간 1개 = 바퀴 1개
+        // HAVING: 기간 양 끝의 덜 찬 바퀴는 최소·최대가 틀리므로 90% 이상 찬 바퀴만
+        const string sql = @"
+            SELECT Bucket,
+                   AVG(Battery)     AS AvgBattery,
+                   MIN(Battery)     AS MinBattery,
+                   MAX(Battery)     AS MaxBattery,
+                   AVG(Temperature) AS AvgTemperature,
+                   MIN(Temperature) AS MinTemperature,
+                   MAX(Temperature) AS MaxTemperature
+            FROM (
+                SELECT DATE_BUCKET(SECOND, @period, RecordedAt, CAST(@epoch AS DATETIME2(0))) AS Bucket,
+                       Battery,
+                       Temperature
+                FROM dbo.Telemetry
+                WHERE SatelliteId = @satelliteId
+                  AND RecordedAt >= DATEADD(HOUR, -@hours, SYSDATETIME())
+            ) AS t
+            GROUP BY Bucket
+            HAVING COUNT(*) >= @period * 0.9
+            ORDER BY Bucket;";
+
+        using var conn = new SqlConnection(connectionString);
+        conn.Open();
+
+        using var cmd = new SqlCommand(sql, conn);
+        cmd.Parameters.Add("@satelliteId", SqlDbType.VarChar, 16).Value = satelliteId;
+        cmd.Parameters.AddWithValue("@period", OrbitPeriodSeconds);
+        cmd.Parameters.Add("@epoch", SqlDbType.DateTime2).Value = OrbitEpoch;
+        cmd.Parameters.AddWithValue("@hours", hours);
+
+        return ReadSummary(cmd);
+    }
+
+    /// <summary>요약 조회 결과 읽기. 두 요약 쿼리의 칸 순서가 같아서 공통으로 씀.</summary>
+    private static HistorySummary ReadSummary(SqlCommand cmd)
+    {
+        // 결과 줄 수를 모르므로 List
+        var battery = new List<SummaryPoint>();
+        var temperature = new List<SummaryPoint>();
 
         using var reader = cmd.ExecuteReader();
         while (reader.Read())
