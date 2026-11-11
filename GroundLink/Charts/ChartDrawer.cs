@@ -1,5 +1,4 @@
 using GroundLink.Models;
-using GroundLink.Rules;
 using ScottPlot.Plottables;
 using ScottPlot.WPF;
 
@@ -21,8 +20,9 @@ public static class ChartDrawer
         ScottPlot.Fonts.AddFontFile(FontName, @"C:\Windows\Fonts\malgun.ttf");
     }
 
-    /// <summary>과거 기록: 평균선 + 최소~최대 띠 + 경고선.</summary>
-    public static void DrawHistory(WpfPlot plot, List<SummaryPoint> points, string title)
+    /// <summary>과거 기록: 평균선 + 최소~최대 띠 + 경고선. 배터리·온도 공통.</summary>
+    public static void DrawHistory(
+        WpfPlot plot, List<SummaryPoint> points, string title, string unit, params double[] warningLines)
     {
         plot.Plot.Clear();
 
@@ -48,10 +48,13 @@ public static class ChartDrawer
         avgLine.MarkerSize = 0;   // 점 없이 선만
         avgLine.LineWidth = 2;
 
-        AddWarningLine(plot, WarningRules.BatteryWarning, $"경고 {WarningRules.BatteryWarning} %");
+        for (int i = 0; i < warningLines.Length; i++)
+        {
+            AddWarningLine(plot, warningLines[i], i == 0 ? "경고 기준" : null);   // 범례는 한 번만
+        }
 
         plot.Plot.Title(title);
-        plot.Plot.YLabel("%");
+        plot.Plot.YLabel(unit);
         plot.Plot.ShowLegend();
         plot.Plot.Axes.DateTimeTicksBottom();   // x축 날짜 표시
         plot.Plot.Axes.AutoScale();

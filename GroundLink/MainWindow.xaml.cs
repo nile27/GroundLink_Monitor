@@ -14,6 +14,7 @@
  */
 
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 using GroundLink.Charts;
 using GroundLink.Data;
@@ -39,6 +40,9 @@ namespace GroundLink
         private DataLogger? batteryLogger;
         private DataLogger? temperatureLogger;
         private DateTime? liveStart;   // 첫 수신 시각 = 실시간 차트 x축 0초
+
+        // 저장 대기 리스트: 10건 모이면 DB에 저장 (수신 스레드에서만 사용)
+        private readonly List<Telemetry> buffer = new();
 
         public MainWindow()
         {
@@ -96,6 +100,13 @@ namespace GroundLink
         {
             int threadId = Environment.CurrentManagedThreadId;   // 수신 스레드 번호 (확인용)
 
+            buffer.Add(data);
+            if (buffer.Count >= 10)
+            {
+                repository.InsertBatch(buffer);
+                buffer.Clear();   // 저장한 뒤 비우기
+            }
+
             // 화면 변경은 UI 스레드에서만 (직접 하면 InvalidOperationException)
             Dispatcher.InvokeAsync(() =>
             {
@@ -115,6 +126,20 @@ namespace GroundLink
         /// <summary>수신 종료: 사유 표시, 다시 연결 가능하게.</summary>
         private void OnStopped(string reason)
         {
+
+            try 
+            { 
+                if(buffer.Count > 0)
+                {
+                    repository.InsertBatch(buffer);
+                    buffer.Clear();
+                }
+            }
+            catch (Exception ex)
+            {
+                reason += $"남은 데이터 저장 실패: {ex.Message}";
+            }
+
             Dispatcher.InvokeAsync(() =>
             {
                 LiveText.Text = $"실시간: {reason}";
@@ -145,34 +170,79 @@ namespace GroundLink
             }
         }
 
-        /// <summary>과거 기록: 결론 한 줄(경고 구간 수, 최저값) + 근거 차트.</summary>
+        /// <summary>과거 기록: 배터리·온도 각각 결론 한 줄 + 근거 차트.</summary>
         private void ShowHistory(int hours, int bucketMinutes, string label)
         {
             try
             {
-                List<SummaryPoint> points = repository.GetSummary(SatelliteId, hours, bucketMinutes);
-                ChartDrawer.DrawHistory(MyPlot, points, $"배터리 (최근 {label}, {bucketMinutes}분 요약)");
+                HistorySummary summary = repository.GetSummary(SatelliteId, hours, bucketMinutes);
+                string period = $"최근 {label}, {bucketMinutes}분 요약";
 
-                if (points.Count == 0)
-                {
-                    HistorySummaryText.Text = $"최근 {label}: 데이터 없음";
-                    HistorySummaryText.Foreground = Brushes.Gray;
-                    return;
-                }
+                ChartDrawer.DrawHistory(BatteryHistoryPlot, summary.Battery,
+                    $"배터리 ({period})", "%", WarningRules.BatteryWarning);
+                ChartDrawer.DrawHistory(TemperatureHistoryPlot, summary.Temperature,
+                    $"배터리 온도 ({period})", "°C", WarningRules.TemperatureLow, WarningRules.TemperatureHigh);
 
-                int belowCount = points.Count(p => WarningRules.IsBatteryWarning(p.Min));   // 경고선 아래 구간 수
-                double lowest = points.Min(p => p.Min);
-                double margin = WarningRules.BatteryMargin(lowest);
-
-                HistorySummaryText.Text = belowCount == 0
-                    ? $"최근 {label}: 경고 없음 · 최저 {lowest:F1} % (경고선까지 {margin:F1} %p)"
-                    : $"최근 {label}: 경고 구간 {belowCount}개 · 최저 {lowest:F1} %";
-                HistorySummaryText.Foreground = belowCount == 0 ? Brushes.DarkGreen : Brushes.Red;
+                ShowBatteryHistorySummary(summary.Battery);
+                ShowTemperatureHistorySummary(summary.Temperature);
             }
             catch (Exception ex)
             {
                 ResultText.Text = $"차트 조회 실패: {ex.Message}";
             }
+        }
+
+        /// <summary>배터리 과거 기록 결론: 경고 구간 수, 최저값, 경고선까지 여유.</summary>
+        private void ShowBatteryHistorySummary(List<SummaryPoint> points)
+        {
+            if (points.Count == 0)
+            {
+                ShowSummary(BatteryHistorySummaryText, "배터리: 데이터 없음", Brushes.Gray);
+                return;
+            }
+
+            int warnCount = points.Count(p => WarningRules.IsBatteryWarning(p.Min));   // 경고선 아래로 내려간 구간 수
+            double lowest = points.Min(p => p.Min);
+
+            if (warnCount == 0)
+                ShowSummary(BatteryHistorySummaryText,
+                    $"배터리: 경고 없음 · 최저 {lowest:F1} % (경고까지 {WarningRules.BatteryMargin(lowest):F1} %p)",
+                    Brushes.DarkGreen);
+            else
+                ShowSummary(BatteryHistorySummaryText,
+                    $"배터리: 경고 구간 {warnCount}개 · 최저 {lowest:F1} %", Brushes.Red);
+        }
+
+        /// <summary>온도 과거 기록 결론: 경고 구간 수, 최저~최고, 가까운 경고선까지 여유.</summary>
+        private void ShowTemperatureHistorySummary(List<SummaryPoint> points)
+        {
+            if (points.Count == 0)
+            {
+                ShowSummary(TemperatureHistorySummaryText, "배터리 온도: 데이터 없음", Brushes.Gray);
+                return;
+            }
+
+            // 구간 안에서 한 번이라도 범위를 벗어났으면 경고 구간
+            int warnCount = points.Count(p =>
+                WarningRules.IsTemperatureWarning(p.Min) || WarningRules.IsTemperatureWarning(p.Max));
+            double lowest = points.Min(p => p.Min);
+            double highest = points.Max(p => p.Max);
+            double margin = Math.Min(WarningRules.TemperatureMargin(lowest), WarningRules.TemperatureMargin(highest));
+
+            if (warnCount == 0)
+                ShowSummary(TemperatureHistorySummaryText,
+                    $"배터리 온도: 경고 없음 · {lowest:F1} ~ {highest:F1} °C (경고까지 {margin:F1} °C)",
+                    Brushes.DarkGreen);
+            else
+                ShowSummary(TemperatureHistorySummaryText,
+                    $"배터리 온도: 경고 구간 {warnCount}개 · {lowest:F1} ~ {highest:F1} °C", Brushes.Red);
+        }
+
+        /// <summary>결론 글자와 색 표시.</summary>
+        private static void ShowSummary(TextBlock target, string text, Brush color)
+        {
+            target.Text = text;
+            target.Foreground = color;
         }
 
         /// <summary>현재 값 칸: 숫자 + 경고 여부 또는 경고까지 남은 여유. 경고면 빨간색.</summary>

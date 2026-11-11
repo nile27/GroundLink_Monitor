@@ -56,16 +56,30 @@
             <Button Content="1주일" Width="80" Click="WeekButton_Click"/>
         </StackPanel>
 
-        <!-- 과거 기록 결론 (차트는 근거) -->
-        <TextBlock x:Name="HistorySummaryText"
-                   Margin="0,10,0,0"
-                   FontSize="18"
-                   FontWeight="SemiBold"
-                   Text="과거 기록: -"/>
+        <!-- 과거 기록: 위 = 결론 한 줄, 아래 = 근거 차트 / 왼쪽 = 배터리, 오른쪽 = 배터리 온도 -->
+        <Grid Margin="0,10,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="330"/>
+            </Grid.RowDefinitions>
 
-        <!-- 과거 기록 차트 -->
-        <ScottPlot:WpfPlot x:Name="MyPlot"
-                           Height="330"
-                           Margin="0,10,0,0"/>
+            <TextBlock x:Name="BatteryHistorySummaryText"
+                       Grid.Row="0" Grid.Column="0"
+                       FontSize="16" FontWeight="SemiBold"
+                       TextWrapping="Wrap"
+                       Text="배터리: -"/>
+            <TextBlock x:Name="TemperatureHistorySummaryText"
+                       Grid.Row="0" Grid.Column="1"
+                       FontSize="16" FontWeight="SemiBold"
+                       TextWrapping="Wrap"
+                       Text="배터리 온도: -"/>
+
+            <ScottPlot:WpfPlot x:Name="BatteryHistoryPlot" Grid.Row="1" Grid.Column="0"/>
+            <ScottPlot:WpfPlot x:Name="TemperatureHistoryPlot" Grid.Row="1" Grid.Column="1"/>
+        </Grid>
     </StackPanel>
 </Window>
