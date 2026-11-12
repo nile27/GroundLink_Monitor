@@ -482,3 +482,6 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# SSMS에서 저장한 임시 쿼리 (정식 스크립트는 번호를 붙인 파일만)
+DB/SQLQuery*.sql

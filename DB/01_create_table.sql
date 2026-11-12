@@ -14,7 +14,7 @@ CREATE TABLE dbo.Telemetry (
     SatelliteId VARCHAR(16)  NOT NULL,                      -- 위성 ID (예: SAT-001)
     RecordedAt  DATETIME2(0) NOT NULL,                      -- 기록 시각 (1초 단위)
     Battery     FLOAT        NOT NULL,                      -- 배터리 (%)
-    Temperature FLOAT        NOT NULL                       -- 온도 (°C)
+    Temperature FLOAT        NOT NULL                       -- 배터리 온도 (°C)
 );
 GO
 
