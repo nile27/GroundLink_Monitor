@@ -53,6 +53,18 @@
             </Setter>
         </Style>
 
+        <!-- 기간 버튼: Tag에 "선택됨"(bool)을 바인딩하면 선택된 버튼만 강조색 -->
+        <Style x:Key="PeriodButton" TargetType="Button" BasedOn="{StaticResource DarkButton}">
+            <Setter Property="Margin" Value="0,0,6,0"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
+                    <Setter Property="Background" Value="#38BDF8"/>
+                    <Setter Property="BorderBrush" Value="#38BDF8"/>
+                    <Setter Property="Foreground" Value="#0B1220"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
         <!-- 주 버튼 (시뮬레이터 연결): 눈에 띄게 강조색 -->
         <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource DarkButton}">
             <Setter Property="Background" Value="#38BDF8"/>
@@ -69,15 +81,14 @@
             <Border Style="{StaticResource Card}" Padding="16,10">
                 <DockPanel>
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                        <Button x:Name="TestButton"
-                                Content="최신 값 조회"
+                        <!-- Click 이벤트 대신 ViewModel의 명령에 바인딩 -->
+                        <Button Content="최신 값 조회"
                                 Style="{StaticResource DarkButton}"
                                 Margin="0,0,8,0"
-                                Click="TestButton_Click"/>
-                        <Button x:Name="ConnectButton"
-                                Content="시뮬레이터 연결"
+                                Command="{Binding LoadLatestCommand}"/>
+                        <Button Content="시뮬레이터 연결"
                                 Style="{StaticResource PrimaryButton}"
-                                Click="ConnectButton_Click"/>
+                                Command="{Binding ConnectCommand}"/>
                     </StackPanel>
 
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -86,25 +97,50 @@
                             <TextBlock Text="SAT-001" FontFamily="Consolas" Foreground="{StaticResource MutedBrush}"/>
                         </Border>
 
-                        <Ellipse x:Name="StatusDot"
-                                 Width="10" Height="10"
-                                 Fill="#94A3B8"
-                                 VerticalAlignment="Center"
-                                 Margin="0,0,6,0"/>
-                        <TextBlock x:Name="StatusText"
-                                   FontWeight="SemiBold"
-                                   Foreground="#94A3B8"
+                        <!-- 연결 상태: MainViewModel 값에 바인딩 (색 글자 "#RRGGBB"는 WPF가 Brush로 변환) -->
+                        <!-- 상태 배지: 테두리·점·글자를 같은 색으로. 점만 있으면 10px라 눈에 잘 안 띔 -->
+                        <Border BorderBrush="{Binding ConnectionColor}"
+                                BorderThickness="1.5"
+                                CornerRadius="12"
+                                Padding="10,3"
+                                VerticalAlignment="Center"
+                                Margin="0,0,12,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="10" Height="10"
+                                         Fill="{Binding ConnectionColor}"
+                                         VerticalAlignment="Center"
+                                         Margin="0,0,6,0"/>
+                                <TextBlock FontWeight="SemiBold"
+                                           Foreground="{Binding ConnectionColor}"
+                                           VerticalAlignment="Center"
+                                           Text="{Binding ConnectionText}"/>
+                            </StackPanel>
+                        </Border>
+                        <TextBlock Foreground="{StaticResource MutedBrush}"
                                    VerticalAlignment="Center"
-                                   Margin="0,0,12,0"
-                                   Text="연결 안 됨"/>
-                        <TextBlock x:Name="LiveText"
-                                   Foreground="{StaticResource MutedBrush}"
-                                   VerticalAlignment="Center"/>
+                                   Text="{Binding ConnectionDetail}"/>
                     </StackPanel>
                 </DockPanel>
             </Border>
 
-            <!-- 2. 현재 값: 배터리 | 배터리 온도 -->
+            <!-- 성능 측정: 갱신 묶기 켜기/끄기 + 1초마다 측정값 (7단계 전후 비교용) -->
+            <DockPanel Margin="4,8,4,0">
+                <CheckBox DockPanel.Dock="Left"
+                          Content="화면 갱신 묶기 (0.1초)"
+                          IsChecked="{Binding BatchUiUpdates}"
+                          Foreground="{StaticResource MutedBrush}"
+                          FontSize="12"
+                          VerticalAlignment="Center"
+                          Margin="0,0,16,0"/>
+                <TextBlock Text="{Binding PerfText}"
+                           Foreground="{StaticResource MutedBrush}"
+                           FontFamily="Consolas"
+                           FontSize="12"
+                           TextTrimming="CharacterEllipsis"
+                           VerticalAlignment="Center"/>
+            </DockPanel>
+
+            <!-- 2. 현재 값: 배터리 | 배터리 온도 (MainViewModel 값에 바인딩) -->
             <Grid Margin="0,12,0,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -115,18 +151,20 @@
                 <Border Grid.Column="0" Style="{StaticResource Card}">
                     <StackPanel>
                         <TextBlock Text="배터리 잔량" FontSize="13" Foreground="{StaticResource MutedBrush}"/>
-                        <TextBlock x:Name="BatteryText" Text="-" FontSize="34" FontWeight="SemiBold" Margin="0,2,0,0"/>
-                        <TextBlock x:Name="BatteryMarginText" Text="경고 기준 60 % 미만" FontSize="13"
-                                   Foreground="{StaticResource MutedBrush}"/>
+                        <TextBlock Text="{Binding BatteryText}" Foreground="{Binding BatteryColor}"
+                                   FontSize="34" FontWeight="SemiBold" Margin="0,2,0,0"/>
+                        <TextBlock Text="{Binding BatteryMarginText}" Foreground="{Binding BatteryMarginColor}"
+                                   FontSize="13"/>
                     </StackPanel>
                 </Border>
 
                 <Border Grid.Column="2" Style="{StaticResource Card}">
                     <StackPanel>
                         <TextBlock Text="배터리 온도" FontSize="13" Foreground="{StaticResource MutedBrush}"/>
-                        <TextBlock x:Name="TemperatureText" Text="-" FontSize="34" FontWeight="SemiBold" Margin="0,2,0,0"/>
-                        <TextBlock x:Name="TemperatureMarginText" Text="경고 기준 0 °C 미만 · 40 °C 초과" FontSize="13"
-                                   Foreground="{StaticResource MutedBrush}"/>
+                        <TextBlock Text="{Binding TemperatureText}" Foreground="{Binding TemperatureColor}"
+                                   FontSize="34" FontWeight="SemiBold" Margin="0,2,0,0"/>
+                        <TextBlock Text="{Binding TemperatureMarginText}" Foreground="{Binding TemperatureMarginColor}"
+                                   FontSize="13"/>
                     </StackPanel>
                 </Border>
             </Grid>
@@ -148,7 +186,7 @@
             </Grid>
 
             <!-- 오류 메시지 -->
-            <TextBlock x:Name="ResultText"
+            <TextBlock Text="{Binding ErrorText}"
                        Margin="0,8,0,0"
                        Foreground="#F87171"
                        TextWrapping="Wrap"/>
@@ -158,17 +196,22 @@
                 <StackPanel>
                     <DockPanel>
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
-                            <Button x:Name="RecentButton" Content="최근 3시간" Style="{StaticResource DarkButton}"
-                                    Margin="0,0,6,0" Click="RecentButton_Click"/>
-                            <Button x:Name="DayButton" Content="1일" Style="{StaticResource DarkButton}"
-                                    Margin="0,0,6,0" Click="DayButton_Click"/>
-                            <Button x:Name="WeekButton" Content="1주일" Style="{StaticResource DarkButton}"
-                                    Click="WeekButton_Click"/>
+                            <!-- 세 버튼 모두 같은 명령. CommandParameter로 기간 구분 (MainViewModel.Period… 값) -->
+                            <Button Content="최근 3시간" Style="{StaticResource PeriodButton}"
+                                    Command="{Binding ShowHistoryCommand}" CommandParameter="3h"
+                                    Tag="{Binding IsRecentSelected}"/>
+                            <Button Content="1일" Style="{StaticResource PeriodButton}"
+                                    Command="{Binding ShowHistoryCommand}" CommandParameter="1d"
+                                    Tag="{Binding IsDaySelected}"/>
+                            <Button Content="1주일" Style="{StaticResource PeriodButton}"
+                                    Command="{Binding ShowHistoryCommand}" CommandParameter="1w"
+                                    Tag="{Binding IsWeekSelected}"
+                                    Margin="0"/>
                         </StackPanel>
 
                         <StackPanel Margin="0,0,16,0">
                             <TextBlock Text="과거 기록" FontSize="16" FontWeight="SemiBold"/>
-                            <TextBlock x:Name="HistoryDescriptionText"
+                            <TextBlock Text="{Binding HistoryDescription}"
                                        FontSize="12"
                                        Foreground="{StaticResource MutedBrush}"
                                        TextWrapping="Wrap"
@@ -187,18 +230,18 @@
                             <RowDefinition Height="320"/>
                         </Grid.RowDefinitions>
 
-                        <TextBlock x:Name="BatteryHistorySummaryText"
+                        <TextBlock Text="{Binding BatteryHistorySummary}"
+                                   Foreground="{Binding BatteryHistoryColor}"
                                    Grid.Row="0" Grid.Column="0"
                                    FontSize="14" FontWeight="SemiBold"
                                    TextWrapping="Wrap"
-                                   Margin="0,0,0,8"
-                                   Text="배터리: -"/>
-                        <TextBlock x:Name="TemperatureHistorySummaryText"
+                                   Margin="0,0,0,8"/>
+                        <TextBlock Text="{Binding TemperatureHistorySummary}"
+                                   Foreground="{Binding TemperatureHistoryColor}"
                                    Grid.Row="0" Grid.Column="2"
                                    FontSize="14" FontWeight="SemiBold"
                                    TextWrapping="Wrap"
-                                   Margin="0,0,0,8"
-                                   Text="배터리 온도: -"/>
+                                   Margin="0,0,0,8"/>
 
                         <ScottPlot:WpfPlot x:Name="BatteryHistoryPlot" Grid.Row="1" Grid.Column="0"/>
                         <ScottPlot:WpfPlot x:Name="TemperatureHistoryPlot" Grid.Row="1" Grid.Column="2"/>

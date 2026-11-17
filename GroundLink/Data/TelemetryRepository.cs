@@ -26,30 +26,6 @@ public class TelemetryRepository
         this.connectionString = connectionString;
     }
 
-    public void Insert(Telemetry item)
-    {
-        const string sql = @"
-            INSERT INTO dbo.Telemetry (SatelliteId, RecordedAt, Battery, Temperature, Source)
-            VALUES (@satelliteId, @recordedAt, @battery, @temperature,2);
-            ";
-
-        // 연결 DB
-        using var conn = new SqlConnection(connectionString);
-        conn.Open();
-        // 쿼리 명령 만들기
-        using var cmd = new SqlCommand(sql, conn);
-
-        // 파라미터 넣기: 쿼리의 @이름 자리에 실제 값 채우기
-        cmd.Parameters.Add("@satelliteId", SqlDbType.VarChar, 16).Value = item.SatelliteId;   // 칸 타입(VARCHAR)과 맞춤
-        cmd.Parameters.AddWithValue("@recordedAt", item.RecordedAt);
-        cmd.Parameters.AddWithValue("@battery", item.Battery);
-        cmd.Parameters.AddWithValue("@temperature", item.Temperature);
-
-        // 5. 실행: INSERT는 결과 표가 없으므로 ExecuteReader 대신 ExecuteNonQuery
-        cmd.ExecuteNonQuery();
-
-    }
-
     /// <summary>여러 건을 연결 1번으로 저장 (Source = 2: 소켓 수신).</summary>
     public void InsertBatch(List<Telemetry> items)
     {

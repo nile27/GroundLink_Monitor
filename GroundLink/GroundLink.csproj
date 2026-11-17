@@ -9,8 +9,16 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="7.1.1" />
     <PackageReference Include="ScottPlot.WPF" Version="5.1.59" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 실행 설정: 빌드할 때 실행 파일 옆으로 복사 (AppSettings.Load가 거기서 읽음) -->
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>
