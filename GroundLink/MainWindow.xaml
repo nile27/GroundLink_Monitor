@@ -5,7 +5,10 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:GroundLink"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
+        Title="GruondLink 관제" Height="1000" Width="1200"
+        Background="#0B1220" Foreground="#E6EDF7"
+        FontFamily="Malgun Gothic"
+        >
     <Grid>
 
     </Grid>
