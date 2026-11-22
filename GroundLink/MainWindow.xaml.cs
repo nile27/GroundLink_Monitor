@@ -32,6 +32,7 @@ public partial class MainWindow : Window
 
         SetStatus("연결 안 됨", Theme.Muted);
         SelectPeriod(DayButton);   // 처음 조회 기간 1일
+        DrawSampleChart();
 
     }
 
@@ -74,6 +75,31 @@ public partial class MainWindow : Window
             button.Tag = isSelected;
         }
     }
+
+    // 고정 데이터 선 차트 함수 (1시간, 1분 간격 60점 + 경고선)
+    private void DrawSampleChart()
+    {
+        int count = 60;
+        double[] xs = new double[count];
+        double[] ys = new double[count];
+
+        DateTime start = DateTime.Now.AddHours(-1);
+        for (int i = 0; i < count; i++)
+        {
+            xs[i] = start.AddMinutes(i).ToOADate();        // 시각 → 숫자 (차트 x축은 숫자)
+            ys[i] = 90 + 8 * Math.Sin(i / 10.0);           // 82~98 % 사이 파도 (가짜 값)
+        }
+
+        BatteryLivePlot.Plot.Add.Scatter(xs, ys);
+        BatteryLivePlot.Plot.Axes.DateTimeTicksBottom();   // x축 눈금을 날짜·시각으로
+
+        var warningLine = BatteryLivePlot.Plot.Add.HorizontalLine(60);   // 경고 기준 60 %
+        warningLine.LinePattern = ScottPlot.LinePattern.Dashed;
+
+        BatteryLivePlot.Plot.Axes.SetLimitsY(50, 100);     // y축 범위 고정 (경고선이 보이게)
+        BatteryLivePlot.Refresh();
+    }
+
 
     // 배터리 최신 값 조회 이벤트
     private void LoadLatestButton_Click(object sender, RoutedEventArgs e)
