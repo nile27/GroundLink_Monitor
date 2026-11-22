@@ -1,89 +1,49 @@
-﻿using System.Text;
+﻿using System.Diagnostics;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
-
-using System.Diagnostics;
 using GroundLink.Data;
 using GroundLink.Models;
-using Microsoft.Data.SqlClient;
-
+using GroundLink.ViewModels;
 
 namespace GroundLink;
 
-// 메인 화면
+/*
+ * 메인 화면 (View).
+ * 값·버튼 동작은 MainViewModel이 가짐 → XAML이 {Binding}으로 연결 (이 파일에 버튼 이벤트 없음).
+ * 이 파일에 남는 것: ViewModel 만들기, 차트 그리기 (ScottPlot은 바인딩이 안 됨)
+ *
+ * 1. ViewModel 만들고 DataContext에 연결
+ * 2. 차트 공통: 한글 글꼴, 어두운 색
+ * 3. 실시간 차트 (지금은 가짜 데이터, 카드 12에서 수신 데이터로)
+ * 4. 과거 기록 차트: ViewModel의 HistoryLoaded를 받아서 그림
+ */
 public partial class MainWindow : Window
 {
-
-    // DB 접속 정보 (나중에 설정 파일로 옮김) 추후 수정 및 이동
+    // DB 접속 정보 (나중에 설정 파일로 옮김)
     private const string ConnectionString = @"Server=localhost\SQLEXPRESS;Database=MonitorDB;Trusted_Connection=True;TrustServerCertificate=True;";
     private const string SatelliteId = "SAT-001";
 
     private const string KoreanFont = "KoreanFont";   // 차트 한글 글꼴 이름 (아래에서 malgun.ttf로 등록)
 
-    private readonly TelemetryRepository repository = new TelemetryRepository(ConnectionString);
+    private readonly MainViewModel viewModel;
+
     public MainWindow()
     {
         InitializeComponent();
 
         ScottPlot.Fonts.AddFontFile(KoreanFont, @"C:\Windows\Fonts\malgun.ttf");   // 한글 글꼴 파일 직접 등록 (차트 그리기 전에 1회)
 
-        SetStatus("연결 안 됨", Theme.Muted);
-        SelectPeriod(DayButton);   // 처음 조회 기간 어제
+        viewModel = new MainViewModel(new TelemetryRepository(ConnectionString), SatelliteId);
+        viewModel.HistoryLoaded += OnHistoryLoaded;   // 과거 기록 조회 끝나면 차트 그리기
+        DataContext = viewModel;                      // XAML의 {Binding ...}이 이 객체에서 값을 찾음
+
         DrawSampleChart();
         StylePlot(BatteryHistoryPlot);   // 버튼 누르기 전 빈 차트도 어둡게
 
-        Loaded += (_, _) => ShowHistorySummary(DateTime.Today.AddDays(-1), DateTime.Today, 3600);   // 창이 뜬 뒤 어제 차트 그리기 (생성자에서 하면 창이 늦게 뜸)
+        // 창이 뜬 뒤 어제 차트 (생성자에서 하면 창이 늦게 뜸). 버튼 누른 것과 같은 명령 실행
+        Loaded += (_, _) => viewModel.SelectPeriodCommand.Execute(MainViewModel.PeriodDay);
 
         BatteryHistoryPlot.Plot.RenderManager.RenderFinished += (_, render) =>
-    Debug.WriteLine($"Render {render.Elapsed.TotalMilliseconds:F1} ms");
-
-    }
-
-    // 색 글자("#RRGGBB") → Brush 변환 함수
-    private static Brush ToBrush(string hex)
-    {
-        BrushConverter converter = new BrushConverter();        // XAML이 색 글자를 바꿀 때 쓰는 변환기
-        object? result = converter.ConvertFromString(hex);       // 여러 타입용 함수라 결과가 object?
-        Brush brush = (Brush)result!;                            // Brush로 형 변환, ! = null 아님 표시
-        return brush;
-    }
-
-    // 상태 배지 갱신 함수 (테두리·점·글자 같은 색)
-    private void SetStatus(string text, string colorHex, string detail = "")
-    {
-        Brush brush = ToBrush(colorHex);
-        StatusBorder.BorderBrush = brush;
-        StatusDot.Fill = brush;
-        StatusText.Foreground = brush;
-        StatusText.Text = text;
-        StatusDetailText.Text = detail;
-    }
-
-    // 현재 값 표시 함수
-    private void ShowCurrentValues(double battery, double temperature)
-    {
-        BatteryText.Text = $"{battery:F1} %";
-        TemperatureText.Text = $"{temperature:F1} °C";
-    }
-
-    // 기간 버튼 강조 함수 (누른 버튼만 Tag = true → 스타일이 하늘색)
-    private void SelectPeriod(Button selected)
-    {
-        
-        Button[] buttons = new Button[] { DayButton, WeekButton };
-
-        foreach (Button button in buttons)
-        {
-            bool isSelected = (button == selected);   // 누른 버튼이면 true
-            button.Tag = isSelected;
-        }
+            Debug.WriteLine($"Render {render.Elapsed.TotalMilliseconds:F1} ms");
     }
 
     // 고정 데이터 선 차트 함수 (1시간, 1분 간격 60점 + 경고선)
@@ -113,148 +73,75 @@ public partial class MainWindow : Window
         BatteryLivePlot.Refresh();
     }
 
-
-    // 배터리 최신 값 조회 이벤트
-    private void LoadLatestButton_Click(object sender, RoutedEventArgs e)
+    // 과거 기록 조회 끝 이벤트 (ViewModel → 화면)
+    private void OnHistoryLoaded(HistoryChartData data)
     {
-        ErrorText.Text = "";
-
-        try
-        {
-            Stopwatch stopwatch = Stopwatch.StartNew();
-            Telemetry? latest = repository.GetLatest(SatelliteId);
-            stopwatch.Stop();
-            Debug.WriteLine($"GetLatest {stopwatch.Elapsed.TotalMilliseconds:F1} ms");   // 측정 기록 (출력 창)
-
-            if (latest == null)
-            {
-                ErrorText.Text = "데이터 없음";
-                return;
-            }
-
-            ShowCurrentValues(latest.Battery, latest.Temperature);
-            BatteryMarginText.Text = $"{latest.RecordedAt:HH:mm:ss} 기준";
-        }
-        catch (SqlException ex)
-        {
-            ErrorText.Text = $"DB 조회 실패: {ex.Message}";
-        }
+        DrawHistory(data.Points, data.BucketSeconds);
     }
 
-    // 시뮬레이터 연결 이벤트
-    private void ConnectButton_Click(object sender, RoutedEventArgs e)
+    // 과거 기록 차트 그리기 함수 (칸마다 최저·최고 막대 좌우 + 평균 점선)
+    private void DrawHistory(IReadOnlyList<SummaryPoint> points, int bucketSeconds)
     {
+        BatteryHistoryPlot.Plot.Clear();
 
-    }
-
-    // 기간 버튼 이벤트 (버튼 3개 공용)
-    private void PeriodButton_Click(object sender, RoutedEventArgs e)
-    {
-        SelectPeriod((Button)sender);
-
-        if (sender == DayButton)
-            ShowHistorySummary(DateTime.Today.AddDays(-1), DateTime.Today, 3600);   // 어제 0시 ~ 오늘 0시: 1시간 단위 (24줄)
-        else if (sender == WeekButton)
-            ShowHistorySummary(DateTime.Today.AddDays(-7), DateTime.Today, 86400);   // 지난 7일 (0시 기준): 하루 단위 (7줄) 최저·최고 막대 + 평균 선
-    }
-
-    // 과거 기록 원본 조회 + 그리기 함수 (짧은 기간용)
-    private void ShowHistoryRaw(DateTime from, DateTime to)
-    {
-        try
+        if (points.Count == 0)   // 데이터 없음: 빈 차트 (글자는 ViewModel의 ErrorText)
         {
-            Stopwatch stopwatch = Stopwatch.StartNew();
-            List<Telemetry> rows = repository.GetRange(SatelliteId, from, to);
-            stopwatch.Stop();
-            Debug.WriteLine($"GetRange {rows.Count}줄 {stopwatch.Elapsed.TotalMilliseconds:F1} ms");
-
-            double[] xs = new double[rows.Count];
-            double[] ys = new double[rows.Count];
-            for (int i = 0; i < rows.Count; i++)
-            {
-                xs[i] = rows[i].RecordedAt.ToOADate();
-                ys[i] = rows[i].Battery;
-            }
-
-            BatteryHistoryPlot.Plot.Clear();                     // 다시 누르면 겹치지 않게
-            var rawLine = BatteryHistoryPlot.Plot.Add.Scatter(xs, ys);
-            rawLine.Color = ScottPlot.Color.FromHex(Theme.Accent);
-            BatteryHistoryPlot.Plot.HideLegend();                // 1주일에서 켠 범례 끄기
+            BatteryHistoryPlot.Plot.HideLegend();
             DrawHistoryCommon();
+            return;
         }
-        catch (SqlException ex)
+
+        double[] xs = new double[points.Count];
+        double[] avgs = new double[points.Count];
+        double[] mins = new double[points.Count];
+        double[] maxs = new double[points.Count];
+        for (int i = 0; i < points.Count; i++)
         {
-            ErrorText.Text = $"DB 조회 실패: {ex.Message}";
+            xs[i] = points[i].BucketStart.AddSeconds(bucketSeconds / 2.0).ToOADate();   // 칸 가운데에 그림 (하루면 정오)
+            avgs[i] = points[i].Avg;
+            mins[i] = points[i].Min;
+            maxs[i] = points[i].Max;
         }
-    }
 
-    // 과거 기록 요약 조회 + 그리기 함수 (긴 기간용, 칸마다 최저·최고 막대 좌우 + 평균 점선)
-    private void ShowHistorySummary(DateTime from, DateTime to, int bucketSeconds)
-    {
-        try
+        // 칸마다 막대 2개: 왼쪽 = 최저, 오른쪽 = 최고 (x 단위가 '일'이라 0.3 = 칸 폭의 30 %)
+        double barWidth = bucketSeconds / 86400.0 * 0.3;
+        List<ScottPlot.Bar> minBars = new List<ScottPlot.Bar>();
+        List<ScottPlot.Bar> maxBars = new List<ScottPlot.Bar>();
+        for (int i = 0; i < points.Count; i++)
         {
-            Stopwatch stopwatch = Stopwatch.StartNew();
-            List<SummaryPoint> points = repository.GetSummary(SatelliteId, from, to, bucketSeconds);
-            stopwatch.Stop();
-            Debug.WriteLine($"GetSummary {points.Count}줄 {stopwatch.Elapsed.TotalMilliseconds:F1} ms");
-
-            double[] xs = new double[points.Count];
-            double[] avgs = new double[points.Count];
-            double[] mins = new double[points.Count];
-            double[] maxs = new double[points.Count];
-            for (int i = 0; i < points.Count; i++)
+            minBars.Add(new ScottPlot.Bar
             {
-                xs[i] = points[i].BucketStart.AddSeconds(bucketSeconds / 2.0).ToOADate();   // 칸 가운데에 그림 (하루면 정오)
-                avgs[i] = points[i].Avg;
-                mins[i] = points[i].Min;
-                maxs[i] = points[i].Max;
-            }
-
-            BatteryHistoryPlot.Plot.Clear();
-
-            // 칸마다 막대 2개: 왼쪽 = 최저, 오른쪽 = 최고 (x 단위가 '일'이라 0.3 = 칸 폭의 30 %)
-            double barWidth = bucketSeconds / 86400.0 * 0.3;
-            List<ScottPlot.Bar> minBars = new List<ScottPlot.Bar>();
-            List<ScottPlot.Bar> maxBars = new List<ScottPlot.Bar>();
-            for (int i = 0; i < points.Count; i++)
+                Position = xs[i] - barWidth / 2,
+                Value = mins[i],
+                Size = barWidth,
+                FillColor = ScottPlot.Color.FromHex(Theme.Second),
+            });
+            maxBars.Add(new ScottPlot.Bar
             {
-                minBars.Add(new ScottPlot.Bar
-                {
-                    Position = xs[i] - barWidth / 2,
-                    Value = mins[i],
-                    Size = barWidth,
-                    FillColor = ScottPlot.Color.FromHex(Theme.Second),
-                });
-                maxBars.Add(new ScottPlot.Bar
-                {
-                    Position = xs[i] + barWidth / 2,
-                    Value = maxs[i],
-                    Size = barWidth,
-                    FillColor = ScottPlot.Color.FromHex(Theme.Accent),
-                });
-            }
-            var minPlot = BatteryHistoryPlot.Plot.Add.Bars(minBars);
-            minPlot.LegendText = "최저";
-            var maxPlot = BatteryHistoryPlot.Plot.Add.Bars(maxBars);
-            maxPlot.LegendText = "최고";
-
-            var avgLine = BatteryHistoryPlot.Plot.Add.Scatter(xs, avgs);   // 평균 = 점 + 선
-            avgLine.Color = ScottPlot.Color.FromHex(Theme.Text);
-            avgLine.LineWidth = 2;
-            avgLine.MarkerSize = 8;
-            avgLine.LegendText = "평균";
-
-            DrawHistoryCommon();
-            BatteryHistoryPlot.Plot.ShowLegend();
-            BatteryHistoryPlot.Plot.Legend.BackgroundColor = ScottPlot.Color.FromHex(Theme.Card);
-            BatteryHistoryPlot.Plot.Legend.FontColor = ScottPlot.Color.FromHex(Theme.Text);
-            BatteryHistoryPlot.Plot.Legend.OutlineColor = ScottPlot.Color.FromHex(Theme.Line);
-            BatteryHistoryPlot.Refresh();
+                Position = xs[i] + barWidth / 2,
+                Value = maxs[i],
+                Size = barWidth,
+                FillColor = ScottPlot.Color.FromHex(Theme.Accent),
+            });
         }
-        catch (SqlException ex)
-        {
-            ErrorText.Text = $"DB 조회 실패: {ex.Message}";
-        }
+        var minPlot = BatteryHistoryPlot.Plot.Add.Bars(minBars);
+        minPlot.LegendText = "최저";
+        var maxPlot = BatteryHistoryPlot.Plot.Add.Bars(maxBars);
+        maxPlot.LegendText = "최고";
+
+        var avgLine = BatteryHistoryPlot.Plot.Add.Scatter(xs, avgs);   // 평균 = 점 + 선
+        avgLine.Color = ScottPlot.Color.FromHex(Theme.Text);
+        avgLine.LineWidth = 2;
+        avgLine.MarkerSize = 8;
+        avgLine.LegendText = "평균";
+
+        DrawHistoryCommon();
+        BatteryHistoryPlot.Plot.ShowLegend();
+        BatteryHistoryPlot.Plot.Legend.Alignment = ScottPlot.Alignment.UpperRight;   // 오른쪽 위 (막대를 안 가리게, y축 150까지 빈자리)
+        BatteryHistoryPlot.Plot.Legend.BackgroundColor = ScottPlot.Color.FromHex(Theme.Card);
+        BatteryHistoryPlot.Plot.Legend.FontColor = ScottPlot.Color.FromHex(Theme.Text);
+        BatteryHistoryPlot.Plot.Legend.OutlineColor = ScottPlot.Color.FromHex(Theme.Line);
+        BatteryHistoryPlot.Refresh();
     }
 
     // 과거 기록 차트 공통 마무리 함수 (경고선, 시각 축, 범위, 다시 그리기)

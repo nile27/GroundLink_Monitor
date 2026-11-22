@@ -86,10 +86,10 @@
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                         <Button x:Name="LoadLatestButton" Content="최신 값 조회"
                             Style="{StaticResource DarkButton}" Margin="0,0,8,0"
-                            Click="LoadLatestButton_Click"/>
+                            Command="{Binding LoadLatestCommand}"/>
                         <Button x:Name="ConnectButton" Content="시뮬레이터 연결"
                             Style="{StaticResource PrimaryButton}"
-                            Click="ConnectButton_Click"/>
+                            Command="{Binding ConnectCommand}"/>
                     </StackPanel>
 
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -99,16 +99,16 @@
                         </Border>
 
                         <!-- 상태 배지: 테두리·점·글자를 같은 색으로 -->
-                        <Border x:Name="StatusBorder" BorderBrush="#94A3B8" BorderThickness="1.5"
+                        <Border x:Name="StatusBorder" BorderBrush="{Binding StatusColor}" BorderThickness="1.5"
                             CornerRadius="12" Padding="10,3" VerticalAlignment="Center" Margin="0,0,12,0">
                             <StackPanel Orientation="Horizontal">
-                                <Ellipse x:Name="StatusDot" Width="10" Height="10" Fill="#94A3B8"
+                                <Ellipse x:Name="StatusDot" Width="10" Height="10" Fill="{Binding StatusColor}"
                                      VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                <TextBlock x:Name="StatusText" Text="연결 안 됨" FontWeight="SemiBold"
-                                       Foreground="#94A3B8" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="StatusText" Text="{Binding StatusText}" FontWeight="SemiBold"
+                                       Foreground="{Binding StatusColor}" VerticalAlignment="Center"/>
                             </StackPanel>
                         </Border>
-                        <TextBlock x:Name="StatusDetailText" Foreground="{StaticResource MutedBrush}"
+                        <TextBlock x:Name="StatusDetailText" Text="{Binding StatusDetail}" Foreground="{StaticResource MutedBrush}"
                                VerticalAlignment="Center"/>
                     </StackPanel>
                 </DockPanel>
@@ -125,15 +125,15 @@
                 <Border Grid.Column="0" Style="{StaticResource Card}">
                     <StackPanel>
                         <TextBlock Text="배터리 잔량" FontSize="13" Foreground="{StaticResource MutedBrush}"/>
-                        <TextBlock x:Name="BatteryText" Text="--" FontSize="34" FontWeight="SemiBold" Margin="0,2,0,0"/>
-                        <TextBlock x:Name="BatteryMarginText" FontSize="13"/>
+                        <TextBlock x:Name="BatteryText" Text="{Binding BatteryText}" FontSize="34" FontWeight="SemiBold" Margin="0,2,0,0"/>
+                        <TextBlock x:Name="BatteryMarginText" Text="{Binding BatteryMarginText}" FontSize="13"/>
                     </StackPanel>
                 </Border>
 
                 <Border Grid.Column="2" Style="{StaticResource Card}">
                     <StackPanel>
                         <TextBlock Text="배터리 온도" FontSize="13" Foreground="{StaticResource MutedBrush}"/>
-                        <TextBlock x:Name="TemperatureText" Text="--" FontSize="34" FontWeight="SemiBold" Margin="0,2,0,0"/>
+                        <TextBlock x:Name="TemperatureText" Text="{Binding TemperatureText}" FontSize="34" FontWeight="SemiBold" Margin="0,2,0,0"/>
                         <TextBlock x:Name="TemperatureMarginText" FontSize="13"/>
                     </StackPanel>
                 </Border>
@@ -157,7 +157,7 @@
             </Grid>
 
             <!-- 오류 메시지 -->
-            <TextBlock x:Name="ErrorText" Margin="0,8,0,0" Foreground="#F87171" TextWrapping="Wrap"/>
+            <TextBlock x:Name="ErrorText" Text="{Binding ErrorText}" Margin="0,8,0,0" Foreground="#F87171" TextWrapping="Wrap"/>
             
             <!-- 과거 기록 -->
             <Border Style="{StaticResource Card}" Margin="0,4,0,0">
@@ -165,9 +165,11 @@
                     <DockPanel>
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
                             <Button x:Name="DayButton" Content="어제" Style="{StaticResource PeriodButton}"
-                        Click="PeriodButton_Click"/>
+                        Command="{Binding SelectPeriodCommand}" CommandParameter="day"
+                        Tag="{Binding IsDaySelected}"/>
                             <Button x:Name="WeekButton" Content="1주일" Style="{StaticResource PeriodButton}"
-                        Click="PeriodButton_Click" Margin="0"/>
+                        Command="{Binding SelectPeriodCommand}" CommandParameter="week"
+                        Tag="{Binding IsWeekSelected}" Margin="0"/>
                         </StackPanel>
 
                         <StackPanel Margin="0,0,16,0">
