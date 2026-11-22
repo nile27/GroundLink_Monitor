@@ -9,17 +9,30 @@ using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
 
+using System.Diagnostics;
+using GroundLink.Data;
+using GroundLink.Models;
+using Microsoft.Data.SqlClient;
+
+
 namespace GroundLink;
 
 // 메인 화면
 public partial class MainWindow : Window
 {
+
+    // DB 접속 정보 (나중에 설정 파일로 옮김) 추후 수정 및 이동
+    private const string ConnectionString = @"Server=localhost\SQLEXPRESS;Database=MonitorDB;Trusted_Connection=True;TrustServerCertificate=True;";
+    private const string SatelliteId = "SAT-001";
+
+    private readonly TelemetryRepository repository = new TelemetryRepository(ConnectionString);
     public MainWindow()
     {
         InitializeComponent();
 
         SetStatus("연결 안 됨", Theme.Muted);
         SelectPeriod(DayButton);   // 처음 조회 기간 1일
+
     }
 
     // 색 글자("#RRGGBB") → Brush 변환 함수
@@ -52,6 +65,7 @@ public partial class MainWindow : Window
     // 기간 버튼 강조 함수 (누른 버튼만 Tag = true → 스타일이 하늘색)
     private void SelectPeriod(Button selected)
     {
+        
         Button[] buttons = new Button[] { RecentButton, DayButton, WeekButton };
 
         foreach (Button button in buttons)
@@ -64,7 +78,28 @@ public partial class MainWindow : Window
     // 배터리 최신 값 조회 이벤트
     private void LoadLatestButton_Click(object sender, RoutedEventArgs e)
     {
+        ErrorText.Text = "";
 
+        try
+        {
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            Telemetry? latest = repository.GetLatest(SatelliteId);
+            stopwatch.Stop();
+            Debug.WriteLine($"GetLatest {stopwatch.Elapsed.TotalMilliseconds:F1} ms");   // 측정 기록 (출력 창)
+
+            if (latest == null)
+            {
+                ErrorText.Text = "데이터 없음";
+                return;
+            }
+
+            ShowCurrentValues(latest.Battery, latest.Temperature);
+            BatteryMarginText.Text = $"{latest.RecordedAt:HH:mm:ss} 기준";
+        }
+        catch (SqlException ex)
+        {
+            ErrorText.Text = $"DB 조회 실패: {ex.Message}";
+        }
     }
 
     // 시뮬레이터 연결 이벤트
