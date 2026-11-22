@@ -1,13 +1,14 @@
 ﻿using System.Data;
 using GroundLink.Models;
 using Microsoft.Data.SqlClient;
+using System.Diagnostics;
 
 
 
 
 namespace GroundLink.Data
 {
-    class TelemetryRepository
+   public  class TelemetryRepository
     {
         private readonly string connectionString;
 
