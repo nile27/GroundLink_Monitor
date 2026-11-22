@@ -1,53 +1,43 @@
-﻿using System.Diagnostics;
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GroundLink.Data;
 using GroundLink.Models;
+using GroundLink.Network;
 using Microsoft.Data.SqlClient;
+using System.Diagnostics;
+using System.IO;
+// socket client 연결 부
+using System.Net.Sockets;
+using System.Text.Json;
 
 namespace GroundLink.ViewModels;
 
-/*
- * 메인 화면의 값과 동작 (ViewModel).
- * 화면 컨트롤(TextBlock, Button 등)을 모름: 값만 가지고, 값이 바뀌면 알림 → WPF 바인딩이 화면을 갱신.
- * 색은 WPF Brush 대신 "#RRGGBB" 글자로 가짐 → WPF 타입이 없어서 화면 없이 테스트 가능.
- *
- * [ObservableProperty]: 필드 하나로 "속성 + 변경 알림" 코드를 빌드 때 자동 생성 (CommunityToolkit.Mvvm)
- *   private string batteryText → public string BatteryText { get; set; } + PropertyChanged
- *   자동 생성 코드를 이 클래스에 합치려면 클래스가 partial이어야 함
- *
- * [RelayCommand]: 메서드 하나로 버튼에 연결할 Command 속성을 자동 생성
- *   private void LoadLatest() → public IRelayCommand LoadLatestCommand
- *
- * 1. 연결 상태: 글자, 색, 상세 글자
- * 2. 현재 값: 배터리·온도 글자
- * 3. 오류 글자
- * 4. 과거 기록 기간 선택 (버튼 강조)
- * 5. 명령: 최신 값 조회, 시뮬레이터 연결, 기간 선택
- * 6. 과거 기록 조회 (차트는 바인딩이 안 돼서 HistoryLoaded로 화면에 알림)
- */
 public partial class MainViewModel : ObservableObject
 {
-    // 과거 기록 기간 (XAML 버튼의 CommandParameter와 같은 값)
     public const string PeriodDay = "day";
     public const string PeriodWeek = "week";
 
     private readonly TelemetryRepository repository;
     private readonly string satelliteId;
+    private readonly TelemetryClient telemetryClient = new TelemetryClient();
 
-    // 과거 기록 차트용: 조회 끝나면 발생. 차트(ScottPlot)는 바인딩이 안 돼서 화면이 받아서 직접 그림
+    private readonly Action<Action> runOnUi;   // UI 스레드에서 실행해 주는 함수 (창이 넣어 줌)
+    private Thread? receiveThread;
+
+
     public event Action<HistoryChartData>? HistoryLoaded;
-
-    // 필요한 것을 만드는 쪽(창)에서 받음 → 테스트 때 다른 값으로 바꿔 넣기 쉬움
-    public MainViewModel(TelemetryRepository repository, string satelliteId)
+    public MainViewModel(TelemetryRepository repository, string satelliteId, Action<Action> runOnUi)
     {
         this.repository = repository;
         this.satelliteId = satelliteId;
+        this.runOnUi = runOnUi;
     }
+
+
 
     // 1. 연결 상태
     [ObservableProperty] private string statusText = "연결 안 됨";
-    [ObservableProperty] private string statusColor = Theme.Muted;   // 배지 테두리·점·글자 색
+    [ObservableProperty] private string statusColor = Theme.Muted;   
     [ObservableProperty] private string statusDetail = "";
 
     // 2. 현재 값
@@ -58,11 +48,11 @@ public partial class MainViewModel : ObservableObject
     // 3. 오류 글자
     [ObservableProperty] private string errorText = "";
 
-    // 4. 과거 기록 기간 버튼 강조 (true면 스타일이 하늘색)
+    // 4. 과거 기록 기간 버튼 강조
     [ObservableProperty] private bool isDaySelected = true;
     [ObservableProperty] private bool isWeekSelected;
 
-    // 최신 값 조회 명령 (버튼: LoadLatestCommand)
+    // 최신 값 조회 명령
     [RelayCommand]
     private void LoadLatest()
     {
@@ -91,13 +81,80 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    // 시뮬레이터 연결 명령 (버튼: ConnectCommand) → 카드 09~에서 구현
+    // 시뮬레이터 연결 명령
     [RelayCommand]
     private void Connect()
     {
+        if (telemetryClient.IsConnected)   // 이미 연결 중이면 무시 (버튼 여러 번 눌러도 스레드 1개)
+            return;
+
+        ErrorText = "";
+
+        try
+        {
+            telemetryClient.Connect("127.0.0.1", 5000);
+            StatusText = "수신 중";
+            StatusColor = Theme.Ok;
+            StatusDetail = "";
+
+            receiveThread = new Thread(ReceiveLoop) { IsBackground = true, Name = "TelemetryReceive" };
+            receiveThread.Start();
+        }
+        catch (SocketException ex)
+        {
+            StatusText = "연결 실패";
+            StatusColor = Theme.Danger;
+            ErrorText = $"시뮬레이터 연결 실패: {ex.Message}";
+        }
     }
 
-    // 과거 기록 기간 선택 명령 (버튼: SelectPeriodCommand, CommandParameter = "day" / "week")
+    // 텔레메트리 1건 받아서 화면 값 갱신 함수 (카드 10: 화면 타이머가 UI 스레드에서 부름)
+    private void ReceiveLoop()
+    {
+        try
+        {
+            while (true)
+            {
+                Telemetry? data = telemetryClient.ReceiveOne();   // 다음 줄 올 때까지 수신 스레드만 멈춤
+                if (data == null)
+                {
+                    runOnUi(() => Disconnected("시뮬레이터가 연결을 끊음"));
+                    return;
+                }
+
+                runOnUi(() => ShowReceived(data));   // 화면 값은 UI 스레드에서 바꿈
+            }
+        }
+        catch (IOException)
+        {
+            runOnUi(() => Disconnected("수신 중 연결 끊김"));
+        }
+        catch (JsonException)
+        {
+            runOnUi(() => Disconnected("받은 데이터 형식 오류"));
+        }
+    }
+
+    // 받은 값 화면 표시 함수 (UI 스레드)
+    private void ShowReceived(Telemetry data)
+    {
+        BatteryText = $"{data.Battery:F1} %";
+        TemperatureText = $"{data.Temperature:F1} °C";
+        BatteryMarginText = $"{data.RecordedAt:HH:mm:ss} 수신";
+    }
+
+    // 연결 끊김 처리 함수
+    private void Disconnected(string reason)
+    {
+        telemetryClient.Disconnect();
+        StatusText = "끊김";
+        StatusColor = Theme.Danger;
+        StatusDetail = reason;
+    }
+
+
+
+    // 과거 기록 기간 선택 명령
     [RelayCommand]
     private void SelectPeriod(string period)
     {
@@ -134,5 +191,5 @@ public partial class MainViewModel : ObservableObject
     }
 }
 
-// 과거 기록 차트에 넘길 값 (요약 칸들 + 칸 크기 초)
+// 과거 기록 차트에 넘길 값 
 public record HistoryChartData(IReadOnlyList<SummaryPoint> Points, int BucketSeconds);

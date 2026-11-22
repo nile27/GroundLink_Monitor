@@ -3,50 +3,54 @@ using System.Windows;
 using GroundLink.Data;
 using GroundLink.Models;
 using GroundLink.ViewModels;
+using System.Windows.Threading;
 
 namespace GroundLink;
 
-/*
- * 메인 화면 (View).
- * 값·버튼 동작은 MainViewModel이 가짐 → XAML이 {Binding}으로 연결 (이 파일에 버튼 이벤트 없음).
- * 이 파일에 남는 것: ViewModel 만들기, 차트 그리기 (ScottPlot은 바인딩이 안 됨)
- *
- * 1. ViewModel 만들고 DataContext에 연결
- * 2. 차트 공통: 한글 글꼴, 어두운 색
- * 3. 실시간 차트 (지금은 가짜 데이터, 카드 12에서 수신 데이터로)
- * 4. 과거 기록 차트: ViewModel의 HistoryLoaded를 받아서 그림
- */
 public partial class MainWindow : Window
 {
     // DB 접속 정보 (나중에 설정 파일로 옮김)
     private const string ConnectionString = @"Server=localhost\SQLEXPRESS;Database=MonitorDB;Trusted_Connection=True;TrustServerCertificate=True;";
     private const string SatelliteId = "SAT-001";
 
-    private const string KoreanFont = "KoreanFont";   // 차트 한글 글꼴 이름 (아래에서 malgun.ttf로 등록)
+    private const string KoreanFont = "KoreanFont";   // 차트 한글 글꼴 이름 
 
     private readonly MainViewModel viewModel;
+     
+
+    
+    private readonly DispatcherTimer uiHeartbeat = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
+    private readonly Stopwatch heartbeatClock = Stopwatch.StartNew();
+    private double lastTickMs;
+    private double maxGapMs;
+    private double lastReportMs;
 
     public MainWindow()
     {
         InitializeComponent();
 
-        ScottPlot.Fonts.AddFontFile(KoreanFont, @"C:\Windows\Fonts\malgun.ttf");   // 한글 글꼴 파일 직접 등록 (차트 그리기 전에 1회)
+        ScottPlot.Fonts.AddFontFile(KoreanFont, @"C:\Windows\Fonts\malgun.ttf");
 
-        viewModel = new MainViewModel(new TelemetryRepository(ConnectionString), SatelliteId);
-        viewModel.HistoryLoaded += OnHistoryLoaded;   // 과거 기록 조회 끝나면 차트 그리기
-        DataContext = viewModel;                      // XAML의 {Binding ...}이 이 객체에서 값을 찾음
-
+        viewModel = new MainViewModel(
+    new TelemetryRepository(ConnectionString), SatelliteId,
+    action => Dispatcher.InvokeAsync(action)); // UI스레드 추가
+        viewModel.HistoryLoaded += OnHistoryLoaded;   
+        DataContext = viewModel;                     
         DrawSampleChart();
-        StylePlot(BatteryHistoryPlot);   // 버튼 누르기 전 빈 차트도 어둡게
+        StylePlot(BatteryHistoryPlot);   
 
-        // 창이 뜬 뒤 어제 차트 (생성자에서 하면 창이 늦게 뜸). 버튼 누른 것과 같은 명령 실행
+       
         Loaded += (_, _) => viewModel.SelectPeriodCommand.Execute(MainViewModel.PeriodDay);
 
         BatteryHistoryPlot.Plot.RenderManager.RenderFinished += (_, render) =>
             Debug.WriteLine($"Render {render.Elapsed.TotalMilliseconds:F1} ms");
+
+
+        uiHeartbeat.Tick += (_, _) => MeasureUiGap();
+        uiHeartbeat.Start();
     }
 
-    // 고정 데이터 선 차트 함수 (1시간, 1분 간격 60점 + 경고선)
+
     private void DrawSampleChart()
     {
         int count = 60;
@@ -63,8 +67,7 @@ public partial class MainWindow : Window
         var liveLine = BatteryLivePlot.Plot.Add.Scatter(xs, ys);
         liveLine.Color = ScottPlot.Color.FromHex(Theme.Accent);
         BatteryLivePlot.Plot.Axes.DateTimeTicksBottom();   // x축 눈금을 날짜·시각으로
-        StylePlot(BatteryLivePlot);                         // 축을 새로 만든 뒤에 색·글꼴 (순서 중요)
-
+        StylePlot(BatteryLivePlot);                         // 축을 새로 만든 뒤에 색·글꼴
         var warningLine = BatteryLivePlot.Plot.Add.HorizontalLine(60);   // 경고 기준 60 %
         warningLine.LinePattern = ScottPlot.LinePattern.Dashed;
         warningLine.Color = ScottPlot.Color.FromHex(Theme.Caution);
@@ -73,18 +76,18 @@ public partial class MainWindow : Window
         BatteryLivePlot.Refresh();
     }
 
-    // 과거 기록 조회 끝 이벤트 (ViewModel → 화면)
+    // 과거 기록 조회 끝 이벤트
     private void OnHistoryLoaded(HistoryChartData data)
     {
         DrawHistory(data.Points, data.BucketSeconds);
     }
 
-    // 과거 기록 차트 그리기 함수 (칸마다 최저·최고 막대 좌우 + 평균 점선)
+    // 과거 기록 차트 그리기 함수 
     private void DrawHistory(IReadOnlyList<SummaryPoint> points, int bucketSeconds)
     {
         BatteryHistoryPlot.Plot.Clear();
 
-        if (points.Count == 0)   // 데이터 없음: 빈 차트 (글자는 ViewModel의 ErrorText)
+        if (points.Count == 0) 
         {
             BatteryHistoryPlot.Plot.HideLegend();
             DrawHistoryCommon();
@@ -137,7 +140,7 @@ public partial class MainWindow : Window
 
         DrawHistoryCommon();
         BatteryHistoryPlot.Plot.ShowLegend();
-        BatteryHistoryPlot.Plot.Legend.Alignment = ScottPlot.Alignment.UpperRight;   // 오른쪽 위 (막대를 안 가리게, y축 150까지 빈자리)
+        BatteryHistoryPlot.Plot.Legend.Alignment = ScottPlot.Alignment.UpperRight;   
         BatteryHistoryPlot.Plot.Legend.BackgroundColor = ScottPlot.Color.FromHex(Theme.Card);
         BatteryHistoryPlot.Plot.Legend.FontColor = ScottPlot.Color.FromHex(Theme.Text);
         BatteryHistoryPlot.Plot.Legend.OutlineColor = ScottPlot.Color.FromHex(Theme.Line);
@@ -147,7 +150,7 @@ public partial class MainWindow : Window
     // 과거 기록 차트 공통 마무리 함수 (경고선, 시각 축, 범위, 다시 그리기)
     private void DrawHistoryCommon()
     {
-        var warningLine = BatteryHistoryPlot.Plot.Add.HorizontalLine(60);   // 경고 기준 60 %
+        var warningLine = BatteryHistoryPlot.Plot.Add.HorizontalLine(60);   
         warningLine.LinePattern = ScottPlot.LinePattern.Dashed;
         warningLine.Color = ScottPlot.Color.FromHex(Theme.Caution);
 
@@ -165,7 +168,24 @@ public partial class MainWindow : Window
         plot.Plot.DataBackground.Color = ScottPlot.Color.FromHex(Theme.Card);     // 데이터 영역 바탕
         plot.Plot.Axes.Color(ScottPlot.Color.FromHex(Theme.Muted));               // 축 선·눈금·글자
         plot.Plot.Grid.MajorLineColor = ScottPlot.Color.FromHex(Theme.Line);      // 격자
-        plot.Plot.Font.Set(KoreanFont);          // 한글 글꼴 (ScottPlot은 WPF 글꼴이 아니라 자체로 글자를 그려서 따로 지정)
-        plot.Plot.Legend.FontName = KoreanFont;  // 범례 글자도 따로 지정해야 한글이 나옴
+        plot.Plot.Font.Set(KoreanFont);         
+        plot.Plot.Legend.FontName = KoreanFont; 
+    }
+
+    // UI 멈춤 측정 함수
+    private void MeasureUiGap()
+    {
+        double now = heartbeatClock.Elapsed.TotalMilliseconds;
+        double gap = now - lastTickMs;      // 지난 틱 이후 지난 시간 (정상이면 약 50 ms)
+        lastTickMs = now;
+        if (gap > maxGapMs)
+            maxGapMs = gap;
+
+        if (now - lastReportMs >= 1000)
+        {
+            Debug.WriteLine($"UI 최대 멈춤 {maxGapMs:F0} ms");
+            maxGapMs = 0;
+            lastReportMs = now;
+        }
     }
 }
