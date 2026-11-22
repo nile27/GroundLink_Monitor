@@ -5,11 +5,217 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:GroundLink"
         mc:Ignorable="d"
-        Title="GruondLink 관제" Height="1000" Width="1200"
+        Title="GroundLink 관제" Height="1000" Width="1200"
         Background="#0B1220" Foreground="#E6EDF7"
         FontFamily="Malgun Gothic"
         >
-    <Grid>
 
-    </Grid>
+    <Window.Resources>
+        <SolidColorBrush x:Key="CardBrush" Color="#111A2B"/>
+        <SolidColorBrush x:Key="LineBrush" Color="#1F2A3D"/>
+        <SolidColorBrush x:Key="MutedBrush" Color="#94A3B8"/>
+
+        <!-- 카드: 내용 묶음마다 같은 바탕·테두리 -->
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource CardBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource LineBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="16"/>
+        </Style>
+
+        <!-- 다크 Button style -->
+        <Style x:Key="DarkButton" TargetType="Button">
+            <Setter Property="Foreground" Value="#E6EDF7"/>
+            <Setter Property="Background" Value="#1A2438"/>
+            <Setter Property="BorderBrush" Value="#2A3650"/>
+            <Setter Property="Padding" Value="14,7"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Opacity" Value="0.85"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 기간 버튼: Tag가 True인 버튼만 강조색 -->
+        <Style x:Key="PeriodButton" TargetType="Button" BasedOn="{StaticResource DarkButton}">
+            <Setter Property="Margin" Value="0,0,6,0"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
+                    <Setter Property="Background" Value="#38BDF8"/>
+                    <Setter Property="BorderBrush" Value="#38BDF8"/>
+                    <Setter Property="Foreground" Value="#0B1220"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- 주 버튼 (시뮬레이터 연결): 눈에 띄게 강조색 -->
+        <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource DarkButton}">
+            <Setter Property="Background" Value="#38BDF8"/>
+            <Setter Property="BorderBrush" Value="#38BDF8"/>
+            <Setter Property="Foreground" Value="#0B1220"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+
+    </Window.Resources>
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="20">
+
+            <!-- 상단 바: 오른쪽 버튼 고정, 왼쪽은 이름·위성·상태 -->
+            <Border Style="{StaticResource Card}" Padding="16,10">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                        <Button x:Name="LoadLatestButton" Content="최신 값 조회"
+                            Style="{StaticResource DarkButton}" Margin="0,0,8,0"
+                            Click="LoadLatestButton_Click"/>
+                        <Button x:Name="ConnectButton" Content="시뮬레이터 연결"
+                            Style="{StaticResource PrimaryButton}"
+                            Click="ConnectButton_Click"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="GroundLink" FontSize="18" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <Border Background="#1A2438" CornerRadius="4" Padding="8,2" Margin="10,0,24,0">
+                            <TextBlock Text="SAT-001" FontFamily="Consolas" Foreground="{StaticResource MutedBrush}"/>
+                        </Border>
+
+                        <!-- 상태 배지: 테두리·점·글자를 같은 색으로 -->
+                        <Border x:Name="StatusBorder" BorderBrush="#94A3B8" BorderThickness="1.5"
+                            CornerRadius="12" Padding="10,3" VerticalAlignment="Center" Margin="0,0,12,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse x:Name="StatusDot" Width="10" Height="10" Fill="#94A3B8"
+                                     VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <TextBlock x:Name="StatusText" Text="연결 안 됨" FontWeight="SemiBold"
+                                       Foreground="#94A3B8" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+                        <TextBlock x:Name="StatusDetailText" Foreground="{StaticResource MutedBrush}"
+                               VerticalAlignment="Center"/>
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
+            <!-- 배터리 카드 -->
+            <Grid Margin="0,12,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="배터리 잔량" FontSize="13" Foreground="{StaticResource MutedBrush}"/>
+                        <TextBlock x:Name="BatteryText" Text="--" FontSize="34" FontWeight="SemiBold" Margin="0,2,0,0"/>
+                        <TextBlock x:Name="BatteryMarginText" FontSize="13"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="2" Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="배터리 온도" FontSize="13" Foreground="{StaticResource MutedBrush}"/>
+                        <TextBlock x:Name="TemperatureText" Text="--" FontSize="34" FontWeight="SemiBold" Margin="0,2,0,0"/>
+                        <TextBlock x:Name="TemperatureMarginText" FontSize="13"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- 배터리 차트 -->
+            <Grid Margin="0,12,0,0" Height="240">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Style="{StaticResource Card}" Padding="4">
+                    <TextBlock Text="실시간 배터리 차트" Foreground="{StaticResource MutedBrush}"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <Border Grid.Column="2" Style="{StaticResource Card}" Padding="4">
+                    <TextBlock Text="실시간 온도 차트" Foreground="{StaticResource MutedBrush}"
+                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+            </Grid>
+
+            <!-- 오류 메시지 -->
+            <TextBlock x:Name="ErrorText" Margin="0,8,0,0" Foreground="#F87171" TextWrapping="Wrap"/>
+            
+            <!-- 과거 기록 -->
+            <Border Style="{StaticResource Card}" Margin="0,4,0,0">
+                <StackPanel>
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+                            <Button x:Name="RecentButton" Content="최근 3시간" Style="{StaticResource PeriodButton}"
+                        Click="PeriodButton_Click"/>
+                            <Button x:Name="DayButton" Content="1일" Style="{StaticResource PeriodButton}"
+                        Click="PeriodButton_Click"/>
+                            <Button x:Name="WeekButton" Content="1주일" Style="{StaticResource PeriodButton}"
+                        Click="PeriodButton_Click" Margin="0"/>
+                        </StackPanel>
+
+                        <StackPanel Margin="0,0,16,0">
+                            <TextBlock Text="과거 기록" FontSize="16" FontWeight="SemiBold"/>
+                            <TextBlock x:Name="HistoryDescriptionText" FontSize="12"
+                           Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                        </StackPanel>
+                    </DockPanel>
+
+                    <Grid Margin="0,14,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="320"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock x:Name="BatteryHistorySummaryText" Grid.Row="0" Grid.Column="0"
+                       FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                        <TextBlock x:Name="TemperatureHistorySummaryText" Grid.Row="0" Grid.Column="2"
+                       FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,8"/>
+
+                        <Border Grid.Row="1" Grid.Column="0" BorderBrush="{StaticResource LineBrush}" BorderThickness="1">
+                            <TextBlock Text="과거 배터리 차트" Foreground="{StaticResource MutedBrush}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <Border Grid.Row="1" Grid.Column="2" BorderBrush="{StaticResource LineBrush}" BorderThickness="1">
+                            <TextBlock Text="과거 온도 차트" Foreground="{StaticResource MutedBrush}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </Grid>
+                </StackPanel>
+            </Border>
+            
+
+
+        </StackPanel>
+        
+        
+        
+    </ScrollViewer>
+
+
+
+
 </Window>
