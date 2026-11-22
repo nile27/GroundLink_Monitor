@@ -164,9 +164,7 @@
                 <StackPanel>
                     <DockPanel>
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
-                            <Button x:Name="RecentButton" Content="최근 3시간" Style="{StaticResource PeriodButton}"
-                        Click="PeriodButton_Click"/>
-                            <Button x:Name="DayButton" Content="1일" Style="{StaticResource PeriodButton}"
+                            <Button x:Name="DayButton" Content="어제" Style="{StaticResource PeriodButton}"
                         Click="PeriodButton_Click"/>
                             <Button x:Name="WeekButton" Content="1주일" Style="{StaticResource PeriodButton}"
                         Click="PeriodButton_Click" Margin="0"/>
