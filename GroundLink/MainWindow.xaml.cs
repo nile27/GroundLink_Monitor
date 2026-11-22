@@ -34,6 +34,9 @@ public partial class MainWindow : Window
         SelectPeriod(DayButton);   // 처음 조회 기간 1일
         DrawSampleChart();
 
+        BatteryHistoryPlot.Plot.RenderManager.RenderFinished += (_, render) =>
+    Debug.WriteLine($"Render {render.Elapsed.TotalMilliseconds:F1} ms");
+
     }
 
     // 색 글자("#RRGGBB") → Brush 변환 함수
@@ -138,5 +141,37 @@ public partial class MainWindow : Window
     private void PeriodButton_Click(object sender, RoutedEventArgs e)
     {
         SelectPeriod((Button)sender);
+
+        if (sender == WeekButton)
+            ShowWeekRaw();
+    }
+
+    private void ShowWeekRaw()
+    {
+        try
+        {
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            List<Telemetry> rows = repository.GetRange(SatelliteId, DateTime.Now.AddDays(-7));
+            stopwatch.Stop();
+            Debug.WriteLine($"GetRange {rows.Count}줄 {stopwatch.Elapsed.TotalMilliseconds:F1} ms");
+
+            double[] xs = new double[rows.Count];
+            double[] ys = new double[rows.Count];
+            for (int i = 0; i < rows.Count; i++)
+            {
+                xs[i] = rows[i].RecordedAt.ToOADate();
+                ys[i] = rows[i].Battery;
+            }
+
+            BatteryHistoryPlot.Plot.Clear();                     // 다시 누르면 겹치지 않게
+            BatteryHistoryPlot.Plot.Add.Scatter(xs, ys);
+            BatteryHistoryPlot.Plot.Axes.DateTimeTicksBottom();
+            BatteryHistoryPlot.Plot.Axes.AutoScale();
+            BatteryHistoryPlot.Refresh();
+        }
+        catch (SqlException ex)
+        {
+            ErrorText.Text = $"DB 조회 실패: {ex.Message}";
+        }
     }
 }

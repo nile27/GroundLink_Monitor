@@ -32,6 +32,7 @@ namespace GroundLink.Data
             using var command = new SqlCommand(sql, connection);
             command.Parameters.Add("@satelliteId", SqlDbType.VarChar, 16).Value = satelliteId;
 
+
             using var reader = command.ExecuteReader();
             if (!reader.Read())
                 return null;
@@ -44,5 +45,32 @@ namespace GroundLink.Data
 
 
         }
+
+        public List<Telemetry> GetRange(string satelliteId, DateTime from)
+        {
+            const string sql = """
+        SELECT RecordedAt, Battery, Temperature
+        FROM dbo.Telemetry
+        WHERE SatelliteId = @satelliteId AND RecordedAt >= @from
+        ORDER BY RecordedAt;
+        """;
+
+            using var connection = new SqlConnection(connectionString);
+            connection.Open();
+
+            using var command = new SqlCommand(sql, connection);
+            command.Parameters.Add("@satelliteId", SqlDbType.VarChar, 16).Value = satelliteId;
+            command.Parameters.Add("@from", SqlDbType.DateTime2).Value = from;
+
+            List<Telemetry> rows = new List<Telemetry>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())   // 줄이 있는 동안 반복
+            {
+                rows.Add(new Telemetry(satelliteId, reader.GetDateTime(0), reader.GetDouble(1), reader.GetDouble(2)));
+            }
+            return rows;
+        }
     }
+
+
 }

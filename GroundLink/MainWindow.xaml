@@ -196,8 +196,8 @@
                        FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,8"/>
 
                         <Border Grid.Row="1" Grid.Column="0" BorderBrush="{StaticResource LineBrush}" BorderThickness="1">
-                            <TextBlock Text="과거 배터리 차트" Foreground="{StaticResource MutedBrush}"
-                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+                            <ScottPlot:WpfPlot x:Name="BatteryHistoryPlot"/>
                         </Border>
                         <Border Grid.Row="1" Grid.Column="2" BorderBrush="{StaticResource LineBrush}" BorderThickness="1">
                             <TextBlock Text="과거 온도 차트" Foreground="{StaticResource MutedBrush}"
