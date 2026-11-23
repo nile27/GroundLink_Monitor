@@ -2,13 +2,11 @@
 using CommunityToolkit.Mvvm.Input;
 using GroundLink.Data;
 using GroundLink.Models;
-using GroundLink.Network;
+using GroundLink.Services;
 using Microsoft.Data.SqlClient;
 using System.Diagnostics;
-using System.IO;
 // socket client 연결 부
 using System.Net.Sockets;
-using System.Text.Json;
 
 namespace GroundLink.ViewModels;
 
@@ -19,10 +17,9 @@ public partial class MainViewModel : ObservableObject
 
     private readonly TelemetryRepository repository;
     private readonly string satelliteId;
-    private readonly TelemetryClient telemetryClient = new TelemetryClient();
+    private readonly TelemetryReceiver receiver = new TelemetryReceiver();   // 수신 스레드는 여기서 관리
 
     private readonly Action<Action> runOnUi;   // UI 스레드에서 실행해 주는 함수 (창이 넣어 줌)
-    private Thread? receiveThread;
 
 
     public event Action<HistoryChartData>? HistoryLoaded;
@@ -31,6 +28,10 @@ public partial class MainViewModel : ObservableObject
         this.repository = repository;
         this.satelliteId = satelliteId;
         this.runOnUi = runOnUi;
+
+        // 수신 이벤트는 수신 스레드에서 옴 → 화면 값은 UI 스레드에서 바꿈
+        receiver.Received += data => runOnUi(() => ShowReceived(data));
+        receiver.Disconnected += reason => runOnUi(() => Disconnected(reason));
     }
 
 
@@ -85,53 +86,23 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void Connect()
     {
-        if (telemetryClient.IsConnected)   // 이미 연결 중이면 무시 (버튼 여러 번 눌러도 스레드 1개)
+        if (receiver.IsConnected)   // 이미 연결 중이면 무시 (버튼 여러 번 눌러도 스레드 1개)
             return;
 
         ErrorText = "";
 
         try
         {
-            telemetryClient.Connect("127.0.0.1", 5000);
+            receiver.Start("127.0.0.1", 5000);   // 접속 + 수신 스레드 시작
             StatusText = "수신 중";
             StatusColor = Theme.Ok;
             StatusDetail = "";
-
-            receiveThread = new Thread(ReceiveLoop) { IsBackground = true, Name = "TelemetryReceive" };
-            receiveThread.Start();
         }
         catch (SocketException ex)
         {
             StatusText = "연결 실패";
             StatusColor = Theme.Danger;
             ErrorText = $"시뮬레이터 연결 실패: {ex.Message}";
-        }
-    }
-
-    // 텔레메트리 1건 받아서 화면 값 갱신 함수 (카드 10: 화면 타이머가 UI 스레드에서 부름)
-    private void ReceiveLoop()
-    {
-        try
-        {
-            while (true)
-            {
-                Telemetry? data = telemetryClient.ReceiveOne();   // 다음 줄 올 때까지 수신 스레드만 멈춤
-                if (data == null)
-                {
-                    runOnUi(() => Disconnected("시뮬레이터가 연결을 끊음"));
-                    return;
-                }
-
-                runOnUi(() => ShowReceived(data));   // 화면 값은 UI 스레드에서 바꿈
-            }
-        }
-        catch (IOException)
-        {
-            runOnUi(() => Disconnected("수신 중 연결 끊김"));
-        }
-        catch (JsonException)
-        {
-            runOnUi(() => Disconnected("받은 데이터 형식 오류"));
         }
     }
 
@@ -146,7 +117,6 @@ public partial class MainViewModel : ObservableObject
     // 연결 끊김 처리 함수
     private void Disconnected(string reason)
     {
-        telemetryClient.Disconnect();
         StatusText = "끊김";
         StatusColor = Theme.Danger;
         StatusDetail = reason;
