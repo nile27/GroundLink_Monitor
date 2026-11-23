@@ -156,6 +156,47 @@ namespace GroundLink.Data
             return points;
         }
 
+        // 여러 건 저장 함수 (트랜잭션)
+        public void SaveBatch(IReadOnlyList<Telemetry> items)
+        {
+            const string sql = """
+            INSERT INTO dbo.Telemetry (SatelliteId, RecordedAt, Battery, Temperature, Source)
+            VALUES (@satelliteId, @recordedAt, @battery, @temperature, 2);
+            """;
+
+            using var connection = new SqlConnection(connectionString);
+            connection.Open();
+
+            using SqlTransaction transaction = connection.BeginTransaction();
+            try
+            {
+                using var command = new SqlCommand(sql, connection, transaction);
+                SqlParameter satelliteId = command.Parameters.Add("@satelliteId", SqlDbType.VarChar, 16);
+                SqlParameter recordedAt = command.Parameters.Add("@recordedAt", SqlDbType.DateTime2);
+                SqlParameter battery = command.Parameters.Add("@battery", SqlDbType.Float);
+                SqlParameter temperature = command.Parameters.Add("@temperature", SqlDbType.Float);
+
+                foreach (Telemetry item in items)
+                {
+                    satelliteId.Value = item.SatelliteId;
+                    recordedAt.Value = item.RecordedAt;
+                    battery.Value = item.Battery;
+                    temperature.Value = item.Temperature;
+                    command.ExecuteNonQuery();
+                }
+
+                transaction.Commit();
+            }
+            catch
+            {
+                transaction.Rollback();
+                throw;
+            }
+        }
+
+
+
+
     }
 
 

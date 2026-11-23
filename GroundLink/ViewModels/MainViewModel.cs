@@ -19,6 +19,7 @@ public partial class MainViewModel : ObservableObject
     private readonly TelemetryRepository repository;
     private readonly string satelliteId;
     private readonly TelemetryReceiver receiver = new TelemetryReceiver();   // 수신 서비스
+    private readonly TelemetrySaver saver; // 저장 서비스
 
     private readonly Action<Action> runOnUi;   // UI 스레드 실행 함수
 
@@ -29,15 +30,23 @@ public partial class MainViewModel : ObservableObject
     // 실시간 차트용 이벤트
     public event Action<Telemetry>? TelemetryReceived;
 
+
     public MainViewModel(TelemetryRepository repository, string satelliteId, Action<Action> runOnUi)
     {
         this.repository = repository;
         this.satelliteId = satelliteId;
         this.runOnUi = runOnUi;
+        saver = new TelemetrySaver(repository);
 
         // 수신 이벤트 연결
         receiver.Received += data => runOnUi(() => ShowReceived(data));
+        receiver.Received += data => saver.Add(data);
+        receiver.Disconnected += reason => saver.Flush();
         receiver.Disconnected += reason => runOnUi(() => Disconnected(reason));
+
+        // 저장 이벤트 연결
+        saver.Saved += count => runOnUi(() => StatusDetail = $"DB 저장 {count}건");
+        saver.SaveFailed += message => runOnUi(() => ErrorText = message);
     }
 
 
@@ -108,7 +117,9 @@ public partial class MainViewModel : ObservableObject
         {
             StatusText = "연결 실패";
             StatusColor = Theme.Danger;
-            ErrorText = $"시뮬레이터 연결 실패: {ex.Message}";
+            ErrorText = ex.SocketErrorCode == SocketError.ConnectionRefused
+                ? "시뮬레이터 연결 실패: 시뮬레이터가 실행 중인지 확인 (127.0.0.1:5000)"
+                : $"시뮬레이터 연결 실패: {ex.SocketErrorCode}";
         }
     }
 
