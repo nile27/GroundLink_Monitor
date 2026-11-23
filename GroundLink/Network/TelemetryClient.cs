@@ -23,7 +23,7 @@ namespace GroundLink.Network
         public void Connect(string host, int port)
         {
             client = new TcpClient();
-            client.Connect(host, port);                     // 실패하면 SocketException
+            client.Connect(host, port);
             reader = new StreamReader(client.GetStream());
         }
 
@@ -33,7 +33,7 @@ namespace GroundLink.Network
             if (reader == null)
                 return null;
 
-            string? line = reader.ReadLine();               // 블로킹: 최대 약 1초
+            string? line = reader.ReadLine();               // 한 줄 받기 (블로킹)
             if (line == null)
                 return null;                                // 상대가 끊음
 

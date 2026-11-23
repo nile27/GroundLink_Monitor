@@ -8,6 +8,7 @@ using System.Diagnostics;
 // socket client 연결 부
 using System.Net.Sockets;
 
+
 namespace GroundLink.ViewModels;
 
 public partial class MainViewModel : ObservableObject
@@ -17,19 +18,24 @@ public partial class MainViewModel : ObservableObject
 
     private readonly TelemetryRepository repository;
     private readonly string satelliteId;
-    private readonly TelemetryReceiver receiver = new TelemetryReceiver();   // 수신 스레드는 여기서 관리
+    private readonly TelemetryReceiver receiver = new TelemetryReceiver();   // 수신 서비스
 
-    private readonly Action<Action> runOnUi;   // UI 스레드에서 실행해 주는 함수 (창이 넣어 줌)
+    private readonly Action<Action> runOnUi;   // UI 스레드 실행 함수
 
 
+    // 과거 차트용 이벤트 (DB)
     public event Action<HistoryChartData>? HistoryLoaded;
+
+    // 실시간 차트용 이벤트
+    public event Action<Telemetry>? TelemetryReceived;
+
     public MainViewModel(TelemetryRepository repository, string satelliteId, Action<Action> runOnUi)
     {
         this.repository = repository;
         this.satelliteId = satelliteId;
         this.runOnUi = runOnUi;
 
-        // 수신 이벤트는 수신 스레드에서 옴 → 화면 값은 UI 스레드에서 바꿈
+        // 수신 이벤트 연결
         receiver.Received += data => runOnUi(() => ShowReceived(data));
         receiver.Disconnected += reason => runOnUi(() => Disconnected(reason));
     }
@@ -64,7 +70,7 @@ public partial class MainViewModel : ObservableObject
             Stopwatch stopwatch = Stopwatch.StartNew();
             Telemetry? latest = repository.GetLatest(satelliteId);
             stopwatch.Stop();
-            Debug.WriteLine($"GetLatest {stopwatch.Elapsed.TotalMilliseconds:F1} ms");   // 측정 기록 (출력 창)
+            Debug.WriteLine($"GetLatest {stopwatch.Elapsed.TotalMilliseconds:F1} ms");   // 측정 기록
 
             if (latest == null)
             {
@@ -86,14 +92,14 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void Connect()
     {
-        if (receiver.IsConnected)   // 이미 연결 중이면 무시 (버튼 여러 번 눌러도 스레드 1개)
+        if (receiver.IsConnected)   // 이미 연결 중
             return;
 
         ErrorText = "";
 
         try
         {
-            receiver.Start("127.0.0.1", 5000);   // 접속 + 수신 스레드 시작
+            receiver.Start("127.0.0.1", 5000);
             StatusText = "수신 중";
             StatusColor = Theme.Ok;
             StatusDetail = "";
@@ -106,12 +112,14 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    // 받은 값 화면 표시 함수 (UI 스레드)
+    // 받은 값 화면 표시 함수
     private void ShowReceived(Telemetry data)
     {
         BatteryText = $"{data.Battery:F1} %";
         TemperatureText = $"{data.Temperature:F1} °C";
         BatteryMarginText = $"{data.RecordedAt:HH:mm:ss} 수신";
+
+        TelemetryReceived?.Invoke(data);
     }
 
     // 연결 끊김 처리 함수
@@ -132,12 +140,12 @@ public partial class MainViewModel : ObservableObject
         IsWeekSelected = (period == PeriodWeek);
 
         if (IsWeekSelected)
-            LoadHistory(DateTime.Today.AddDays(-7), DateTime.Today, 86400);   // 지난 7일: 하루 단위 (7칸)
+            LoadHistory(DateTime.Today.AddDays(-7), DateTime.Today, 86400);   // 지난 7일, 하루 단위
         else
-            LoadHistory(DateTime.Today.AddDays(-1), DateTime.Today, 3600);    // 어제: 1시간 단위 (24칸)
+            LoadHistory(DateTime.Today.AddDays(-1), DateTime.Today, 3600);    // 어제, 1시간 단위
     }
 
-    // 과거 기록 요약 조회 함수 → 끝나면 HistoryLoaded로 화면에 알림
+    // 과거 기록 요약 조회 함수
     private void LoadHistory(DateTime from, DateTime to, int bucketSeconds)
     {
         ErrorText = "";

@@ -4,19 +4,22 @@ using GroundLink.Charts;
 using GroundLink.Data;
 using GroundLink.ViewModels;
 using System.Windows.Threading;
+using GroundLink.Models;
 
 namespace GroundLink;
 
 public partial class MainWindow : Window
 {
-    // DB 접속 정보 (나중에 설정 파일로 옮김)
+    // DB 접속 정보
     private const string ConnectionString = @"Server=localhost\SQLEXPRESS;Database=MonitorDB;Trusted_Connection=True;TrustServerCertificate=True;";
     private const string SatelliteId = "SAT-001";
 
     private readonly MainViewModel viewModel;
-     
-
     
+    // 실시간 배터리 선
+    private readonly ScottPlot.Plottables.DataLogger batteryLiveLogger;
+
+    // UI 멈춤 측정
     private readonly DispatcherTimer uiHeartbeat = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
     private readonly Stopwatch heartbeatClock = Stopwatch.StartNew();
     private double lastTickMs;
@@ -27,23 +30,27 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
 
-        ChartDrawer.RegisterKoreanFont();   // 차트 그리기 전에 1회
+        // 차트 글꼴
+        ChartDrawer.RegisterKoreanFont();
 
+        // ViewModel 연결
         viewModel = new MainViewModel(
-    new TelemetryRepository(ConnectionString), SatelliteId,
-    action => Dispatcher.InvokeAsync(action)); // UI스레드 추가
-        viewModel.HistoryLoaded += OnHistoryLoaded;   
-        DataContext = viewModel;                     
-        ChartDrawer.DrawSampleLive(BatteryLivePlot, 0, 100, 60);   // 실시간 배터리 (가짜 데이터, 카드 12에서 교체)
-        ChartDrawer.ApplyTheme(BatteryHistoryPlot);                 // 버튼 누르기 전 빈 차트도 어둡게
+            new TelemetryRepository(ConnectionString), SatelliteId,
+            action => Dispatcher.InvokeAsync(action));   // UI스레드 추가
+        viewModel.HistoryLoaded += OnHistoryLoaded;
+        viewModel.TelemetryReceived += OnTelemetryReceived;
+        DataContext = viewModel;
 
-       
+        // 차트 준비
+        batteryLiveLogger = ChartDrawer.SetupLive(BatteryLivePlot, 0, 100, 60);   // 실시간 배터리 차트
+        ChartDrawer.ApplyTheme(BatteryHistoryPlot);                               // 빈 차트 색
+
+        // 시작 화면: 어제 기록
         Loaded += (_, _) => viewModel.SelectPeriodCommand.Execute(MainViewModel.PeriodDay);
 
+        // 측정: 그리기 시간, UI 멈춤
         BatteryHistoryPlot.Plot.RenderManager.RenderFinished += (_, render) =>
             Debug.WriteLine($"Render {render.Elapsed.TotalMilliseconds:F1} ms");
-
-
         uiHeartbeat.Tick += (_, _) => MeasureUiGap();
         uiHeartbeat.Start();
     }
@@ -52,14 +59,20 @@ public partial class MainWindow : Window
     // 과거 기록 조회 끝 이벤트
     private void OnHistoryLoaded(HistoryChartData data)
     {
-        ChartDrawer.DrawHistory(BatteryHistoryPlot, data.Points, data.BucketSeconds, 0, 150, 60);   // 배터리: 0~150, 경고 60 %
+        ChartDrawer.DrawHistory(BatteryHistoryPlot, data.Points, data.BucketSeconds, 0, 150, 60);
+    }
+
+    // 수신 이벤트
+    private void OnTelemetryReceived(Telemetry data)
+    {
+        ChartDrawer.AppendLive(BatteryLivePlot, batteryLiveLogger, data.RecordedAt, data.Battery);
     }
 
     // UI 멈춤 측정 함수
     private void MeasureUiGap()
     {
         double now = heartbeatClock.Elapsed.TotalMilliseconds;
-        double gap = now - lastTickMs;      // 지난 틱 이후 지난 시간 (정상이면 약 50 ms)
+        double gap = now - lastTickMs;      // 틱 간격
         lastTickMs = now;
         if (gap > maxGapMs)
             maxGapMs = gap;
