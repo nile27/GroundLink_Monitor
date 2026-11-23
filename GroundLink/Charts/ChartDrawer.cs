@@ -19,6 +19,8 @@ public static class ChartDrawer
         ScottPlot.Fonts.AddFontFile(KoreanFont, @"C:\Windows\Fonts\malgun.ttf");
     }
 
+  
+
     // 어두운 색 + 한글 글꼴 적용 함수
     public static void ApplyTheme(WpfPlot plot)
     {
@@ -35,9 +37,9 @@ public static class ChartDrawer
         plot.Plot.Legend.FontName = KoreanFont;   // 범례 글꼴
     }
 
-    
+
     // 실시간 차트 준비 함수
-    public static DataLogger SetupLive(WpfPlot plot, double yMin, double yMax, double warning)
+    public static DataLogger SetupLive(WpfPlot plot, double yMin, double yMax, params double[] warnings)
     {
         plot.Plot.Clear();
         plot.Plot.Axes.DateTimeTicksBottom();
@@ -47,9 +49,12 @@ public static class ChartDrawer
         logger.LineWidth = 2;
         logger.Color = ScottPlot.Color.FromHex(Theme.Accent);
 
-        var warningLine = plot.Plot.Add.HorizontalLine(warning);   // 경고 기준선
-        warningLine.LinePattern = ScottPlot.LinePattern.Dashed;
-        warningLine.Color = ScottPlot.Color.FromHex(Theme.Caution);
+        foreach (double warning in warnings)
+        {
+            var warningLine = plot.Plot.Add.HorizontalLine(warning);   // 경고 기준선
+            warningLine.LinePattern = ScottPlot.LinePattern.Dashed;
+            warningLine.Color = ScottPlot.Color.FromHex(Theme.Caution);
+        }
 
         ApplyTheme(plot);
 
@@ -77,14 +82,14 @@ public static class ChartDrawer
 
     // 과거 기록 차트 그리기 함수
     public static void DrawHistory(WpfPlot plot, IReadOnlyList<SummaryPoint> points, int bucketSeconds,
-                                   double yMin, double yMax, double warning)
+                                  double yMin, double yMax, params double[] warnings)
     {
         plot.Plot.Clear();
 
         if (points.Count == 0)   // 데이터 없음
         {
             plot.Plot.HideLegend();
-            FinishTimeChart(plot, yMin, yMax, warning);
+            FinishTimeChart(plot, yMin, yMax, warnings);
             return;
         }
 
@@ -134,15 +139,20 @@ public static class ChartDrawer
 
         plot.Plot.ShowLegend();
         plot.Plot.Legend.Alignment = ScottPlot.Alignment.UpperRight;   // 범례 오른쪽 위
-        FinishTimeChart(plot, yMin, yMax, warning);
+        FinishTimeChart(plot, yMin, yMax, warnings);
     }
 
     // 시각 축 차트 공통 마무리 함수
-    private static void FinishTimeChart(WpfPlot plot, double yMin, double yMax, double warning)
+    private static void FinishTimeChart(WpfPlot plot, double yMin, double yMax, double[] warnings)
     {
-        var warningLine = plot.Plot.Add.HorizontalLine(warning);   // 경고 기준선
-        warningLine.LinePattern = ScottPlot.LinePattern.Dashed;
-        warningLine.Color = ScottPlot.Color.FromHex(Theme.Caution);
+
+        foreach (double warning in warnings)
+        {
+            var warningLine = plot.Plot.Add.HorizontalLine(warning);   // 경고 기준선
+            warningLine.LinePattern = ScottPlot.LinePattern.Dashed;
+            warningLine.Color = ScottPlot.Color.FromHex(Theme.Caution);
+        }
+
 
         plot.Plot.Axes.DateTimeTicksBottom();
         ApplyTheme(plot);

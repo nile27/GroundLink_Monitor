@@ -122,6 +122,7 @@ public partial class MainViewModel : ObservableObject
             ErrorText = ex.SocketErrorCode == SocketError.ConnectionRefused
                 ? "시뮬레이터 연결 실패: 시뮬레이터가 실행 중인지 확인 (127.0.0.1:5000)"
                 : $"시뮬레이터 연결 실패: {ex.SocketErrorCode}";
+
         }
     }
 
@@ -172,14 +173,14 @@ public partial class MainViewModel : ObservableObject
         try
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
-            List<SummaryPoint> points = repository.GetSummary(satelliteId, from, to, bucketSeconds);
+            var (battery, temperature) = repository.GetSummaries(satelliteId, from, to, bucketSeconds);
             stopwatch.Stop();
-            Debug.WriteLine($"GetSummary {points.Count}줄 {stopwatch.Elapsed.TotalMilliseconds:F1} ms");
+            Debug.WriteLine($"GetSummary {battery.Count}줄 {stopwatch.Elapsed.TotalMilliseconds:F1} ms");
 
-            if (points.Count == 0)
+            if (battery.Count == 0)
                 ErrorText = "과거 기록 데이터 없음";
 
-            HistoryLoaded?.Invoke(new HistoryChartData(points, bucketSeconds));
+            HistoryLoaded?.Invoke(new HistoryChartData(battery, temperature, bucketSeconds));
         }
         catch (SqlException ex)
         {
@@ -189,4 +190,4 @@ public partial class MainViewModel : ObservableObject
 }
 
 // 과거 기록 차트에 넘길 값 
-public record HistoryChartData(IReadOnlyList<SummaryPoint> Points, int BucketSeconds);
+public record HistoryChartData(IReadOnlyList<SummaryPoint> Battery, IReadOnlyList<SummaryPoint> Temperature, int BucketSeconds);

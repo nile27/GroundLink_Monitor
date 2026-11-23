@@ -19,6 +19,9 @@ public partial class MainWindow : Window
     // 실시간 배터리 선
     private readonly ScottPlot.Plottables.DataLogger batteryLiveLogger;
 
+    // 실시간 온도 선
+    private readonly ScottPlot.Plottables.DataLogger temperatureLiveLogger;
+
     // UI 멈춤 측정
     private readonly DispatcherTimer uiHeartbeat = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
     private readonly Stopwatch heartbeatClock = Stopwatch.StartNew();
@@ -42,8 +45,11 @@ public partial class MainWindow : Window
         DataContext = viewModel;
 
         // 차트 준비
-        batteryLiveLogger = ChartDrawer.SetupLive(BatteryLivePlot, 0, 100, 60);   // 실시간 배터리 차트
-        ChartDrawer.ApplyTheme(BatteryHistoryPlot);                               // 빈 차트 색
+        batteryLiveLogger = ChartDrawer.SetupLive(BatteryLivePlot, 0, 100, 60);             // 실시간 배터리 차트
+        temperatureLiveLogger = ChartDrawer.SetupLive(TemperatureLivePlot, -10, 50, 0, 40); // 실시간 온도 차트
+        ChartDrawer.ApplyTheme(BatteryHistoryPlot);                                         // 빈 차트 색
+        ChartDrawer.ApplyTheme(TemperatureHistoryPlot);                        // 빈 차트 색
+
 
         // 시작 화면: 어제 기록
         Loaded += (_, _) => viewModel.SelectPeriodCommand.Execute(MainViewModel.PeriodDay);
@@ -62,13 +68,15 @@ public partial class MainWindow : Window
     // 과거 기록 조회 끝 이벤트
     private void OnHistoryLoaded(HistoryChartData data)
     {
-        ChartDrawer.DrawHistory(BatteryHistoryPlot, data.Points, data.BucketSeconds, 0, 150, 60);
+        ChartDrawer.DrawHistory(BatteryHistoryPlot, data.Battery, data.BucketSeconds, 0, 150, 60);
+        ChartDrawer.DrawHistory(TemperatureHistoryPlot, data.Temperature, data.BucketSeconds, -10, 60, 0, 40);
     }
 
     // 수신 이벤트
     private void OnTelemetryReceived(Telemetry data)
     {
         ChartDrawer.AppendLive(BatteryLivePlot, batteryLiveLogger, data.RecordedAt, data.Battery);
+        ChartDrawer.AppendLive(TemperatureLivePlot, temperatureLiveLogger, data.RecordedAt, data.Temperature);
     }
 
     // UI 멈춤 측정 함수

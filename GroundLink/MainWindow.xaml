@@ -151,8 +151,7 @@
                     <ScottPlot:WpfPlot x:Name="BatteryLivePlot"/>
                 </Border>
                 <Border Grid.Column="2" Style="{StaticResource Card}" Padding="4">
-                    <TextBlock Text="실시간 온도 차트" Foreground="{StaticResource MutedBrush}"
-                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <ScottPlot:WpfPlot x:Name="TemperatureLivePlot"/>
                 </Border>
             </Grid>
 
@@ -200,8 +199,7 @@
                             <ScottPlot:WpfPlot x:Name="BatteryHistoryPlot"/>
                         </Border>
                         <Border Grid.Row="1" Grid.Column="2" BorderBrush="{StaticResource LineBrush}" BorderThickness="1">
-                            <TextBlock Text="과거 온도 차트" Foreground="{StaticResource MutedBrush}"
-                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <ScottPlot:WpfPlot x:Name="TemperatureHistoryPlot"/>
                         </Border>
                     </Grid>
                 </StackPanel>

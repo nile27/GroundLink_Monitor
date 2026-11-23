@@ -69,24 +69,33 @@ namespace GroundLink.Data
                 rows.Add(new Telemetry(satelliteId, reader.GetDateTime(0), reader.GetDouble(1), reader.GetDouble(2)));
             }
             return rows;
-        }       
+        }
 
+        // 기간 요약 조회 함수 (끝 시각 없음)
         public List<SummaryPoint> GetSummary(string satelliteId, DateTime from, int bucketSeconds)
         {
             return GetSummary(satelliteId, from, DateTime.MaxValue, bucketSeconds);
         }
 
-        // 기간 요약 조회 함수 (from 이상 ~ to 미만, bucketSeconds초 단위로 묶어 평균·최소·최대)
+        // 기간 요약 조회 함수 (배터리)
         public List<SummaryPoint> GetSummary(string satelliteId, DateTime from, DateTime to, int bucketSeconds)
         {
+            return GetSummaries(satelliteId, from, to, bucketSeconds).Battery;
+        }
+
+        // 기간 요약 조회 함수 (배터리·온도)
+        public (List<SummaryPoint> Battery, List<SummaryPoint> Temperature) GetSummaries(
+            string satelliteId, DateTime from, DateTime to, int bucketSeconds)
+        {
             const string sql = """
-        SELECT DATE_BUCKET(SECOND, @bucket, RecordedAt) AS BucketStart,
-               AVG(Battery), MIN(Battery), MAX(Battery)
-        FROM dbo.Telemetry
-        WHERE SatelliteId = @satelliteId AND RecordedAt >= @from AND RecordedAt < @to
-        GROUP BY DATE_BUCKET(SECOND, @bucket, RecordedAt)
-        ORDER BY BucketStart;
-        """;
+            SELECT DATE_BUCKET(SECOND, @bucket, RecordedAt) AS BucketStart,
+                   AVG(Battery), MIN(Battery), MAX(Battery),
+                   AVG(Temperature), MIN(Temperature), MAX(Temperature)
+            FROM dbo.Telemetry
+            WHERE SatelliteId = @satelliteId AND RecordedAt >= @from AND RecordedAt < @to
+            GROUP BY DATE_BUCKET(SECOND, @bucket, RecordedAt)
+            ORDER BY BucketStart;
+            """;
 
             using var connection = new SqlConnection(connectionString);
             connection.Open();
@@ -97,13 +106,16 @@ namespace GroundLink.Data
             command.Parameters.Add("@to", SqlDbType.DateTime2).Value = to;
             command.Parameters.Add("@bucket", SqlDbType.Int).Value = bucketSeconds;
 
-            List<SummaryPoint> points = new List<SummaryPoint>();
+            List<SummaryPoint> battery = new List<SummaryPoint>();
+            List<SummaryPoint> temperature = new List<SummaryPoint>();
             using var reader = command.ExecuteReader();
             while (reader.Read())
             {
-                points.Add(new SummaryPoint(reader.GetDateTime(0), reader.GetDouble(1), reader.GetDouble(2), reader.GetDouble(3)));
+                DateTime bucketStart = reader.GetDateTime(0);
+                battery.Add(new SummaryPoint(bucketStart, reader.GetDouble(1), reader.GetDouble(2), reader.GetDouble(3)));
+                temperature.Add(new SummaryPoint(bucketStart, reader.GetDouble(4), reader.GetDouble(5), reader.GetDouble(6)));
             }
-            return points;
+            return (battery, temperature);
         }
 
         // 여러 건 저장 함수 (트랜잭션)
