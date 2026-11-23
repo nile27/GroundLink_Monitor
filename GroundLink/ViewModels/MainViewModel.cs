@@ -7,6 +7,7 @@ using Microsoft.Data.SqlClient;
 using System.Diagnostics;
 // socket client 연결 부
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 
 
 namespace GroundLink.ViewModels;
@@ -47,6 +48,7 @@ public partial class MainViewModel : ObservableObject
         // 저장 이벤트 연결
         saver.Saved += count => runOnUi(() => StatusDetail = $"DB 저장 {count}건");
         saver.SaveFailed += message => runOnUi(() => ErrorText = message);
+
     }
 
 
@@ -139,6 +141,12 @@ public partial class MainViewModel : ObservableObject
         StatusText = "끊김";
         StatusColor = Theme.Danger;
         StatusDetail = reason;
+    }
+
+    public void Shutdown()
+    {
+        if (receiver.IsConnected)
+            receiver.Stop(TimeSpan.FromSeconds(2));
     }
 
 

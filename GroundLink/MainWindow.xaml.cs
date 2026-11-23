@@ -53,6 +53,9 @@ public partial class MainWindow : Window
             Debug.WriteLine($"Render {render.Elapsed.TotalMilliseconds:F1} ms");
         uiHeartbeat.Tick += (_, _) => MeasureUiGap();
         uiHeartbeat.Start();
+
+        // 종료 처리
+        Closing += (_, _) => viewModel.Shutdown();
     }
 
 

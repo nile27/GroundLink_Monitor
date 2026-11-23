@@ -28,6 +28,13 @@ public class TelemetryReceiver
         receiveThread.Start();
     }
 
+    // 수신 중지 함수
+    public void Stop(TimeSpan wait)
+    {
+        client.Disconnect();
+        receiveThread?.Join(wait);
+    }
+
     // 수신 반복 함수
     private void ReceiveLoop()
     {
@@ -54,6 +61,10 @@ public class TelemetryReceiver
         catch (JsonException)
         {
             reason = "받은 데이터 형식 오류";
+        }
+        catch (ObjectDisposedException)
+        {
+            reason = "앱 종료";
         }
 
         client.Disconnect();
