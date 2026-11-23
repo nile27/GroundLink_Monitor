@@ -69,61 +69,11 @@ namespace GroundLink.Data
                 rows.Add(new Telemetry(satelliteId, reader.GetDateTime(0), reader.GetDouble(1), reader.GetDouble(2)));
             }
             return rows;
-        }
-
-        // 기간 원본 조회 함수 (from 이상 ~ to 미만, 예: 어제 0시 ~ 오늘 0시)
-        public List<Telemetry> GetRange(string satelliteId, DateTime from, DateTime to)
-        {
-            const string sql = """
-            SELECT RecordedAt, Battery, Temperature
-            FROM dbo.Telemetry
-            WHERE SatelliteId = @satelliteId AND RecordedAt >= @from AND RecordedAt < @to
-            ORDER BY RecordedAt;
-            """;
-
-            using var connection = new SqlConnection(connectionString);
-            connection.Open();
-
-            using var command = new SqlCommand(sql, connection);
-            command.Parameters.Add("@satelliteId", SqlDbType.VarChar, 16).Value = satelliteId;
-            command.Parameters.Add("@from", SqlDbType.DateTime2).Value = from;
-            command.Parameters.Add("@to", SqlDbType.DateTime2).Value = to;
-
-            List<Telemetry> rows = new List<Telemetry>();
-            using var reader = command.ExecuteReader();
-            while (reader.Read())
-            {
-                rows.Add(new Telemetry(satelliteId, reader.GetDateTime(0), reader.GetDouble(1), reader.GetDouble(2)));
-            }
-            return rows;
-        }
+        }       
 
         public List<SummaryPoint> GetSummary(string satelliteId, DateTime from, int bucketSeconds)
         {
-            const string sql = """
-        SELECT DATE_BUCKET(SECOND, @bucket, RecordedAt) AS BucketStart,
-               AVG(Battery), MIN(Battery), MAX(Battery)
-        FROM dbo.Telemetry
-        WHERE SatelliteId = @satelliteId AND RecordedAt >= @from
-        GROUP BY DATE_BUCKET(SECOND, @bucket, RecordedAt)
-        ORDER BY BucketStart;
-        """;
-
-            using var connection = new SqlConnection(connectionString);
-            connection.Open();
-
-            using var command = new SqlCommand(sql, connection);
-            command.Parameters.Add("@satelliteId", SqlDbType.VarChar, 16).Value = satelliteId;
-            command.Parameters.Add("@from", SqlDbType.DateTime2).Value = from;
-            command.Parameters.Add("@bucket", SqlDbType.Int).Value = bucketSeconds;
-
-            List<SummaryPoint> points = new List<SummaryPoint>();
-            using var reader = command.ExecuteReader();
-            while (reader.Read())
-            {
-                points.Add(new SummaryPoint(reader.GetDateTime(0), reader.GetDouble(1), reader.GetDouble(2), reader.GetDouble(3)));
-            }
-            return points;
+            return GetSummary(satelliteId, from, DateTime.MaxValue, bucketSeconds);
         }
 
         // 기간 요약 조회 함수 (from 이상 ~ to 미만, bucketSeconds초 단위로 묶어 평균·최소·최대)
