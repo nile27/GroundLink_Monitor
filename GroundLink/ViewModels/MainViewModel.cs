@@ -154,26 +154,26 @@ public partial class MainViewModel : ObservableObject
 
     // 과거 기록 기간 선택 명령
     [RelayCommand]
-    private void SelectPeriod(string period)
+    private async Task SelectPeriod(string period)
     {
         IsDaySelected = (period == PeriodDay);
         IsWeekSelected = (period == PeriodWeek);
 
         if (IsWeekSelected)
-            LoadHistory(DateTime.Today.AddDays(-7), DateTime.Today, 86400);   // 지난 7일, 하루 단위
+            await LoadHistoryAsync(DateTime.Today.AddDays(-7), DateTime.Today, 86400);   // 지난 7일, 하루 단위
         else
-            LoadHistory(DateTime.Today.AddDays(-1), DateTime.Today, 3600);    // 어제, 1시간 단위
+            await LoadHistoryAsync(DateTime.Today.AddDays(-1), DateTime.Today, 3600);    // 어제, 1시간 단위
     }
 
     // 과거 기록 요약 조회 함수
-    private void LoadHistory(DateTime from, DateTime to, int bucketSeconds)
+    private async Task LoadHistoryAsync(DateTime from, DateTime to, int bucketSeconds)
     {
         ErrorText = "";
 
         try
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
-            var (battery, temperature) = repository.GetSummaries(satelliteId, from, to, bucketSeconds);
+            var (battery, temperature) = await repository.GetSummariesAsync(satelliteId, from, to, bucketSeconds);
             stopwatch.Stop();
             Debug.WriteLine($"GetSummary {battery.Count}줄 {stopwatch.Elapsed.TotalMilliseconds:F1} ms");
 
@@ -187,6 +187,7 @@ public partial class MainViewModel : ObservableObject
             ErrorText = $"DB 조회 실패: {ex.Message}";
         }
     }
+       
 }
 
 // 과거 기록 차트에 넘길 값 
