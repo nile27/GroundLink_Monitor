@@ -16,6 +16,7 @@ public partial class MainViewModel : ObservableObject
 {
     public const string PeriodDay = "day";
     public const string PeriodWeek = "week";
+    public const string PeriodMonth = "month";
 
     private readonly TelemetryRepository repository;
     private readonly string satelliteId;
@@ -69,6 +70,7 @@ public partial class MainViewModel : ObservableObject
     // 4. 과거 기록 기간 버튼 강조
     [ObservableProperty] private bool isDaySelected = true;
     [ObservableProperty] private bool isWeekSelected;
+    [ObservableProperty] private bool isMonthSelected;
 
     // 최신 값 조회 명령
     [RelayCommand]
@@ -158,8 +160,11 @@ public partial class MainViewModel : ObservableObject
     {
         IsDaySelected = (period == PeriodDay);
         IsWeekSelected = (period == PeriodWeek);
+        IsMonthSelected = (period == PeriodMonth);
 
-        if (IsWeekSelected)
+        if (IsMonthSelected)
+            await LoadHistoryAsync(DateTime.Today.AddDays(-30), DateTime.Today, 86400);  // 지난 30일, 하루 단위
+        else if (IsWeekSelected)
             await LoadHistoryAsync(DateTime.Today.AddDays(-7), DateTime.Today, 86400);   // 지난 7일, 하루 단위
         else
             await LoadHistoryAsync(DateTime.Today.AddDays(-1), DateTime.Today, 3600);    // 어제, 1시간 단위
