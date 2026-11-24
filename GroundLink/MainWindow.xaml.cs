@@ -68,8 +68,8 @@ public partial class MainWindow : Window
     // 과거 기록 조회 끝 이벤트
     private void OnHistoryLoaded(HistoryChartData data)
     {
-        ChartDrawer.DrawHistory(BatteryHistoryPlot, data.Battery, data.BucketSeconds, 0, 150, 60);
-        ChartDrawer.DrawHistory(TemperatureHistoryPlot, data.Temperature, data.BucketSeconds, -10, 60, 0, 40);
+        ChartDrawer.DrawHistory(BatteryHistoryPlot, data.Battery, data.BucketSeconds, data.From, data.To, 0, 150, 60);
+        ChartDrawer.DrawHistory(TemperatureHistoryPlot, data.Temperature, data.BucketSeconds, data.From, data.To, -10, 60, 0, 40);
     }
 
     // 수신 이벤트

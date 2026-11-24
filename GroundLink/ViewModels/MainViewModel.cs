@@ -180,7 +180,7 @@ public partial class MainViewModel : ObservableObject
             if (battery.Count == 0)
                 ErrorText = "과거 기록 데이터 없음";
 
-            HistoryLoaded?.Invoke(new HistoryChartData(battery, temperature, bucketSeconds));
+            HistoryLoaded?.Invoke(new HistoryChartData(battery, temperature, bucketSeconds, from, to));
         }
         catch (SqlException ex)
         {
@@ -191,4 +191,5 @@ public partial class MainViewModel : ObservableObject
 }
 
 // 과거 기록 차트에 넘길 값 
-public record HistoryChartData(IReadOnlyList<SummaryPoint> Battery, IReadOnlyList<SummaryPoint> Temperature, int BucketSeconds);
+public record HistoryChartData(IReadOnlyList<SummaryPoint> Battery, IReadOnlyList<SummaryPoint> Temperature, int BucketSeconds,
+                               DateTime From, DateTime To);
