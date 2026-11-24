@@ -168,7 +168,10 @@
                         Tag="{Binding IsDaySelected}"/>
                             <Button x:Name="WeekButton" Content="1주일" Style="{StaticResource PeriodButton}"
                         Command="{Binding SelectPeriodCommand}" CommandParameter="week"
-                        Tag="{Binding IsWeekSelected}" Margin="0"/>
+                        Tag="{Binding IsWeekSelected}"/>
+                            <Button x:Name="MonthButton" Content="한 달" Style="{StaticResource PeriodButton}"
+                        Command="{Binding SelectPeriodCommand}" CommandParameter="month"
+                        Tag="{Binding IsMonthSelected}" Margin="0"/>
                         </StackPanel>
 
                         <StackPanel Margin="0,0,16,0">

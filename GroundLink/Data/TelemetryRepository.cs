@@ -118,6 +118,42 @@ namespace GroundLink.Data
             return (battery, temperature);
         }
 
+
+        // 기간 요약 조회 함수 (배터리·온도, 비동기)
+        public async Task<(List<SummaryPoint> Battery, List<SummaryPoint> Temperature)> GetSummariesAsync(
+            string satelliteId, DateTime from, DateTime to, int bucketSeconds)
+        {
+            const string sql = """
+            SELECT DATE_BUCKET(SECOND, @bucket, RecordedAt) AS BucketStart,
+                   AVG(Battery), MIN(Battery), MAX(Battery),
+                   AVG(Temperature), MIN(Temperature), MAX(Temperature)
+            FROM dbo.Telemetry
+            WHERE SatelliteId = @satelliteId AND RecordedAt >= @from AND RecordedAt < @to
+            GROUP BY DATE_BUCKET(SECOND, @bucket, RecordedAt)
+            ORDER BY BucketStart;
+            """;
+
+            await using var connection = new SqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            await using var command = new SqlCommand(sql, connection);
+            command.Parameters.Add("@satelliteId", SqlDbType.VarChar, 16).Value = satelliteId;
+            command.Parameters.Add("@from", SqlDbType.DateTime2).Value = from;
+            command.Parameters.Add("@to", SqlDbType.DateTime2).Value = to;
+            command.Parameters.Add("@bucket", SqlDbType.Int).Value = bucketSeconds;
+
+            List<SummaryPoint> battery = new List<SummaryPoint>();
+            List<SummaryPoint> temperature = new List<SummaryPoint>();
+            await using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                DateTime bucketStart = reader.GetDateTime(0);
+                battery.Add(new SummaryPoint(bucketStart, reader.GetDouble(1), reader.GetDouble(2), reader.GetDouble(3)));
+                temperature.Add(new SummaryPoint(bucketStart, reader.GetDouble(4), reader.GetDouble(5), reader.GetDouble(6)));
+            }
+            return (battery, temperature);
+        }
+
         // 여러 건 저장 함수 (트랜잭션)
         public void SaveBatch(IReadOnlyList<Telemetry> items)
         {

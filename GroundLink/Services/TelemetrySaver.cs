@@ -4,7 +4,7 @@ using Microsoft.Data.SqlClient;
 
 namespace GroundLink.Services;
 
-// 수신 데이터 저장 서비스 (10건씩)
+// 수신 데이터 저장 서비스 
 public class TelemetrySaver
 {
     public const int BatchSize = 10;   // 한 번에 저장할 건수
@@ -13,10 +13,10 @@ public class TelemetrySaver
     private readonly List<Telemetry> buffer = new List<Telemetry>();   // 저장 대기
     private int savedCount;   // 지금까지 저장한 건수
 
-    // 저장 완료 이벤트 (누적 건수)
+    // 저장 완료 이벤트
     public event Action<int>? Saved;
 
-    // 저장 실패 이벤트 (오류 글자)
+    // 저장 실패 이벤트
     public event Action<string>? SaveFailed;
 
     public TelemetrySaver(TelemetryRepository repository)

@@ -82,14 +82,14 @@ public static class ChartDrawer
 
     // 과거 기록 차트 그리기 함수
     public static void DrawHistory(WpfPlot plot, IReadOnlyList<SummaryPoint> points, int bucketSeconds,
-                                  double yMin, double yMax, params double[] warnings)
+                                  DateTime from, DateTime to, double yMin, double yMax, params double[] warnings)
     {
         plot.Plot.Clear();
 
         if (points.Count == 0)   // 데이터 없음
         {
             plot.Plot.HideLegend();
-            FinishTimeChart(plot, yMin, yMax, warnings);
+            FinishTimeChart(plot, from, to, yMin, yMax, warnings);
             return;
         }
 
@@ -139,11 +139,11 @@ public static class ChartDrawer
 
         plot.Plot.ShowLegend();
         plot.Plot.Legend.Alignment = ScottPlot.Alignment.UpperRight;   // 범례 오른쪽 위
-        FinishTimeChart(plot, yMin, yMax, warnings);
+        FinishTimeChart(plot, from, to, yMin, yMax, warnings);
     }
 
     // 시각 축 차트 공통 마무리 함수
-    private static void FinishTimeChart(WpfPlot plot, double yMin, double yMax, double[] warnings)
+    private static void FinishTimeChart(WpfPlot plot, DateTime from, DateTime to, double yMin, double yMax, double[] warnings)
     {
 
         foreach (double warning in warnings)
@@ -156,8 +156,7 @@ public static class ChartDrawer
 
         plot.Plot.Axes.DateTimeTicksBottom();
         ApplyTheme(plot);
-        plot.Plot.Axes.AutoScale();
-        plot.Plot.Axes.SetLimitsY(yMin, yMax);     // y축 범위
+        plot.Plot.Axes.SetLimits(from.ToOADate(), to.ToOADate(), yMin, yMax);   // 조회 기간, y축 범위
         plot.Refresh();
     }
 }

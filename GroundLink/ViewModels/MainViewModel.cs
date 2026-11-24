@@ -16,6 +16,7 @@ public partial class MainViewModel : ObservableObject
 {
     public const string PeriodDay = "day";
     public const string PeriodWeek = "week";
+    public const string PeriodMonth = "month";
 
     private readonly TelemetryRepository repository;
     private readonly string satelliteId;
@@ -69,6 +70,7 @@ public partial class MainViewModel : ObservableObject
     // 4. 과거 기록 기간 버튼 강조
     [ObservableProperty] private bool isDaySelected = true;
     [ObservableProperty] private bool isWeekSelected;
+    [ObservableProperty] private bool isMonthSelected;
 
     // 최신 값 조회 명령
     [RelayCommand]
@@ -154,40 +156,45 @@ public partial class MainViewModel : ObservableObject
 
     // 과거 기록 기간 선택 명령
     [RelayCommand]
-    private void SelectPeriod(string period)
+    private async Task SelectPeriod(string period)
     {
         IsDaySelected = (period == PeriodDay);
         IsWeekSelected = (period == PeriodWeek);
+        IsMonthSelected = (period == PeriodMonth);
 
-        if (IsWeekSelected)
-            LoadHistory(DateTime.Today.AddDays(-7), DateTime.Today, 86400);   // 지난 7일, 하루 단위
+        if (IsMonthSelected)
+            await LoadHistoryAsync(DateTime.Today.AddDays(-30), DateTime.Today, 86400);  // 지난 30일, 하루 단위
+        else if (IsWeekSelected)
+            await LoadHistoryAsync(DateTime.Today.AddDays(-7), DateTime.Today, 86400);   // 지난 7일, 하루 단위
         else
-            LoadHistory(DateTime.Today.AddDays(-1), DateTime.Today, 3600);    // 어제, 1시간 단위
+            await LoadHistoryAsync(DateTime.Today.AddDays(-1), DateTime.Today, 3600);    // 어제, 1시간 단위
     }
 
     // 과거 기록 요약 조회 함수
-    private void LoadHistory(DateTime from, DateTime to, int bucketSeconds)
+    private async Task LoadHistoryAsync(DateTime from, DateTime to, int bucketSeconds)
     {
         ErrorText = "";
 
         try
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
-            var (battery, temperature) = repository.GetSummaries(satelliteId, from, to, bucketSeconds);
+            var (battery, temperature) = await repository.GetSummariesAsync(satelliteId, from, to, bucketSeconds);
             stopwatch.Stop();
             Debug.WriteLine($"GetSummary {battery.Count}줄 {stopwatch.Elapsed.TotalMilliseconds:F1} ms");
 
             if (battery.Count == 0)
                 ErrorText = "과거 기록 데이터 없음";
 
-            HistoryLoaded?.Invoke(new HistoryChartData(battery, temperature, bucketSeconds));
+            HistoryLoaded?.Invoke(new HistoryChartData(battery, temperature, bucketSeconds, from, to));
         }
         catch (SqlException ex)
         {
             ErrorText = $"DB 조회 실패: {ex.Message}";
         }
     }
+       
 }
 
 // 과거 기록 차트에 넘길 값 
-public record HistoryChartData(IReadOnlyList<SummaryPoint> Battery, IReadOnlyList<SummaryPoint> Temperature, int BucketSeconds);
+public record HistoryChartData(IReadOnlyList<SummaryPoint> Battery, IReadOnlyList<SummaryPoint> Temperature, int BucketSeconds,
+                               DateTime From, DateTime To);
