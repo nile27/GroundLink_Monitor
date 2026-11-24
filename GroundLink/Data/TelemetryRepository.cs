@@ -154,6 +154,109 @@ namespace GroundLink.Data
             return (battery, temperature);
         }
 
+        // 하루 요약 채우기 함수 (없는 날 + 어제)
+        public async Task FillDailyAsync(string satelliteId, DateTime fromDay, DateTime toDay)
+        {
+            const string createSql = """
+            IF OBJECT_ID('dbo.TelemetryDaily') IS NULL
+            CREATE TABLE dbo.TelemetryDaily (
+                SatelliteId     VARCHAR(16) NOT NULL,
+                Day             DATE        NOT NULL,
+                SampleCount     INT         NOT NULL,
+                BatterySum      FLOAT       NOT NULL,
+                BatteryMin      FLOAT       NOT NULL,
+                BatteryMax      FLOAT       NOT NULL,
+                TemperatureSum  FLOAT       NOT NULL,
+                TemperatureMin  FLOAT       NOT NULL,
+                TemperatureMax  FLOAT       NOT NULL,
+                CONSTRAINT PK_TelemetryDaily PRIMARY KEY (SatelliteId, Day)
+            );
+            """;
+
+            const string daysSql = """
+            SELECT Day FROM dbo.TelemetryDaily
+            WHERE SatelliteId = @satelliteId AND Day >= @fromDay AND Day < @toDay;
+            """;
+
+            await using var connection = new SqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            await using (var createCommand = new SqlCommand(createSql, connection))
+                await createCommand.ExecuteNonQueryAsync();   // 요약 테이블 없으면 만들기
+
+            HashSet<DateTime> savedDays = new HashSet<DateTime>();   // 이미 저장된 날
+            await using (var daysCommand = new SqlCommand(daysSql, connection))
+            {
+                daysCommand.Parameters.Add("@satelliteId", SqlDbType.VarChar, 16).Value = satelliteId;
+                daysCommand.Parameters.Add("@fromDay", SqlDbType.Date).Value = fromDay;
+                daysCommand.Parameters.Add("@toDay", SqlDbType.Date).Value = toDay;
+                await using var reader = await daysCommand.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                    savedDays.Add(reader.GetDateTime(0));
+            }
+
+            DateTime yesterday = toDay.AddDays(-1);
+            for (DateTime day = fromDay; day < toDay; day = day.AddDays(1))
+            {
+                if (!savedDays.Contains(day) || day == yesterday)
+                    await FillDayAsync(connection, satelliteId, day);
+            }
+        }
+
+        // 하루 요약 1줄 저장 함수
+        private static async Task FillDayAsync(SqlConnection connection, string satelliteId, DateTime day)
+        {
+            const string sql = """
+            DELETE FROM dbo.TelemetryDaily WHERE SatelliteId = @satelliteId AND Day = @day;
+
+            INSERT INTO dbo.TelemetryDaily
+                (SatelliteId, Day, SampleCount, BatterySum, BatteryMin, BatteryMax, TemperatureSum, TemperatureMin, TemperatureMax)
+            SELECT @satelliteId, @day, COUNT(*), SUM(Battery), MIN(Battery), MAX(Battery),
+                   SUM(Temperature), MIN(Temperature), MAX(Temperature)
+            FROM dbo.Telemetry
+            WHERE SatelliteId = @satelliteId AND RecordedAt >= @day AND RecordedAt < DATEADD(DAY, 1, @day)
+            HAVING COUNT(*) > 0;
+            """;
+
+            await using var command = new SqlCommand(sql, connection);
+            command.Parameters.Add("@satelliteId", SqlDbType.VarChar, 16).Value = satelliteId;
+            command.Parameters.Add("@day", SqlDbType.DateTime2).Value = day;
+            await command.ExecuteNonQueryAsync();
+        }
+
+        // 하루 요약 조회 함수 (배터리·온도)
+        public async Task<(List<SummaryPoint> Battery, List<SummaryPoint> Temperature)> GetDailyAsync(
+            string satelliteId, DateTime fromDay, DateTime toDay)
+        {
+            const string sql = """
+            SELECT Day,
+                   BatterySum / SampleCount, BatteryMin, BatteryMax,
+                   TemperatureSum / SampleCount, TemperatureMin, TemperatureMax
+            FROM dbo.TelemetryDaily
+            WHERE SatelliteId = @satelliteId AND Day >= @fromDay AND Day < @toDay
+            ORDER BY Day;
+            """;
+
+            await using var connection = new SqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            await using var command = new SqlCommand(sql, connection);
+            command.Parameters.Add("@satelliteId", SqlDbType.VarChar, 16).Value = satelliteId;
+            command.Parameters.Add("@fromDay", SqlDbType.Date).Value = fromDay;
+            command.Parameters.Add("@toDay", SqlDbType.Date).Value = toDay;
+
+            List<SummaryPoint> battery = new List<SummaryPoint>();
+            List<SummaryPoint> temperature = new List<SummaryPoint>();
+            await using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                DateTime day = reader.GetDateTime(0);
+                battery.Add(new SummaryPoint(day, reader.GetDouble(1), reader.GetDouble(2), reader.GetDouble(3)));
+                temperature.Add(new SummaryPoint(day, reader.GetDouble(4), reader.GetDouble(5), reader.GetDouble(6)));
+            }
+            return (battery, temperature);
+        }
+
         // 여러 건 저장 함수 (트랜잭션)
         public void SaveBatch(IReadOnlyList<Telemetry> items)
         {
