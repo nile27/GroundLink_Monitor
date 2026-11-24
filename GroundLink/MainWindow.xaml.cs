@@ -51,8 +51,12 @@ public partial class MainWindow : Window
         ChartDrawer.ApplyTheme(TemperatureHistoryPlot);                        // 빈 차트 색
 
 
-        // 시작 화면: 어제 기록
-        Loaded += (_, _) => viewModel.SelectPeriodCommand.Execute(MainViewModel.PeriodDay);
+        // 시작 화면: 어제 기록 + 하루 요약 자동 저장
+        Loaded += (_, _) =>
+        {
+            viewModel.SelectPeriodCommand.Execute(MainViewModel.PeriodDay);
+            _ = viewModel.StartDailySummaryAsync();
+        };
 
         // 측정: 그리기 시간, UI 멈춤
         BatteryHistoryPlot.Plot.RenderManager.RenderFinished += (_, render) =>

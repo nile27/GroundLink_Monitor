@@ -114,4 +114,30 @@ public class HistoryQueryTimingTests
         times.Sort();
         output.WriteLine($"요약 {rowCount}줄, 5회 중앙값 {times[2]:F1} ms (최소 {times[0]:F1}, 최대 {times[^1]:F1})");
     }
+
+    // 한 달 하루 요약: 5회 중앙값 측정 함수 (채우기 후)
+    [Fact]
+    [Trait("Category", "Perf")]
+    public async Task MonthDaily()
+    {
+        TelemetryRepository repository = new TelemetryRepository(ConnectionString);
+        DateTime from = DateTime.Today.AddDays(-30);
+        DateTime to = DateTime.Today;
+        await repository.FillDailyAsync(SatelliteId, from, to);
+        await repository.GetDailyAsync(SatelliteId, from, to);   // 첫 1회 버림
+
+        List<double> times = new List<double>();
+        int rowCount = 0;
+        for (int i = 0; i < 5; i++)
+        {
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            rowCount = (await repository.GetDailyAsync(SatelliteId, from, to)).Battery.Count;
+            stopwatch.Stop();
+            times.Add(stopwatch.Elapsed.TotalMilliseconds);
+        }
+
+        Assert.True(rowCount > 0);
+        times.Sort();
+        output.WriteLine($"하루 요약 {rowCount}줄, 5회 중앙값 {times[2]:F1} ms (최소 {times[0]:F1}, 최대 {times[^1]:F1})");
+    }
 }

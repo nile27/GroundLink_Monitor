@@ -24,6 +24,8 @@ public partial class MainViewModel : ObservableObject
     private readonly TelemetrySaver saver; // 저장 서비스
 
     private readonly Action<Action> runOnUi;   // UI 스레드 실행 함수
+    private PeriodicTimer? dailyTimer;                    // 날짜 확인 타이머 (1분)
+    private Task dailyReady = Task.CompletedTask;         // 시작 시 요약 채우기 작업
 
 
     // 과거 차트용 이벤트 (DB)
@@ -148,6 +150,8 @@ public partial class MainViewModel : ObservableObject
 
     public void Shutdown()
     {
+        dailyTimer?.Dispose();   // 날짜 확인 타이머 멈춤
+
         if (receiver.IsConnected)
             receiver.Stop(TimeSpan.FromSeconds(2));
     }
@@ -163,9 +167,9 @@ public partial class MainViewModel : ObservableObject
         IsMonthSelected = (period == PeriodMonth);
 
         if (IsMonthSelected)
-            await LoadHistoryAsync(DateTime.Today.AddDays(-30), DateTime.Today, 86400);  // 지난 30일, 하루 단위
+            await LoadDailyHistoryAsync(30);    // 지난 30일, 하루 요약
         else if (IsWeekSelected)
-            await LoadHistoryAsync(DateTime.Today.AddDays(-7), DateTime.Today, 86400);   // 지난 7일, 하루 단위
+            await LoadDailyHistoryAsync(7);     // 지난 7일, 하루 요약
         else
             await LoadHistoryAsync(DateTime.Today.AddDays(-1), DateTime.Today, 3600);    // 어제, 1시간 단위
     }
@@ -186,6 +190,67 @@ public partial class MainViewModel : ObservableObject
                 ErrorText = "과거 기록 데이터 없음";
 
             HistoryLoaded?.Invoke(new HistoryChartData(battery, temperature, bucketSeconds, from, to));
+        }
+        catch (SqlException ex)
+        {
+            ErrorText = $"DB 조회 실패: {ex.Message}";
+        }
+    }
+
+    // 하루 요약 자동 저장 시작 함수
+    public async Task StartDailySummaryAsync()
+    {
+        dailyReady = FillDailySummaryAsync();
+        await dailyReady;
+
+        DateTime lastDay = DateTime.Today;
+        dailyTimer = new PeriodicTimer(TimeSpan.FromMinutes(1));
+        while (await dailyTimer.WaitForNextTickAsync())
+        {
+            if (DateTime.Today != lastDay)   // 날짜 바뀜
+            {
+                lastDay = DateTime.Today;
+                await FillDailySummaryAsync();
+            }
+        }
+    }
+
+    // 지난 30일 하루 요약 채우기 함수
+    private async Task FillDailySummaryAsync()
+    {
+        try
+        {
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            await repository.FillDailyAsync(satelliteId, DateTime.Today.AddDays(-30), DateTime.Today);
+            stopwatch.Stop();
+            Debug.WriteLine($"FillDaily {stopwatch.Elapsed.TotalMilliseconds:F1} ms");
+        }
+        catch (SqlException ex)
+        {
+            ErrorText = $"하루 요약 저장 실패: {ex.Message}";
+        }
+    }
+
+    // 하루 요약 조회 함수
+    private async Task LoadDailyHistoryAsync(int days)
+    {
+        ErrorText = "";
+        DateTime from = DateTime.Today.AddDays(-days);
+        DateTime to = DateTime.Today;
+
+        try
+        {
+            await dailyReady;
+
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            var (battery, temperature) = await repository.GetDailyAsync(satelliteId, from, to);
+            stopwatch.Stop();
+            Debug.WriteLine($"GetDaily {battery.Count}줄 {stopwatch.Elapsed.TotalMilliseconds:F1} ms");
+
+            if (battery.Count == 0)
+                ErrorText = "과거 기록 데이터 없음";
+
+            HistoryLoaded?.Invoke(new HistoryChartData(battery, temperature, 86400, from, to));
         }
         catch (SqlException ex)
         {
