@@ -44,8 +44,12 @@ while (true)
 
     try
     {
+        using PeriodicTimer timer = new PeriodicTimer(TimeSpan.FromSeconds(1));   // 1초 주기 타이머
+
         while (true)
         {
+            await timer.WaitForNextTickAsync();   // 다음 1초까지 대기
+
             DateTime now = DateTime.Now;
             double phase = (now - epoch).TotalSeconds % OrbitPeriod;   
 
@@ -59,8 +63,6 @@ while (true)
 
             string zone = phase < SunDuration ? "햇빛" : "그늘";
             Console.WriteLine($"[{zone} {(int)phase,4}초] 보냄: {json}");
-
-            Thread.Sleep(1000);  
         }
     }
     catch (IOException)
