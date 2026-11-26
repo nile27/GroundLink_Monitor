@@ -22,10 +22,10 @@ public partial class MainViewModel : ObservableObject
     private readonly string satelliteId;
     private readonly TelemetryReceiver receiver = new TelemetryReceiver();   // 수신 서비스
     private readonly TelemetrySaver saver; // 저장 서비스
-    private readonly string simulatorHost = Environment.GetEnvironmentVariable("GROUNDLINK_SIM_HOST") ?? "127.0.0.1";   // 시뮬레이터 주소 (테스트용)
+    private readonly string simulatorHost = Environment.GetEnvironmentVariable("GROUNDLINK_SIM_HOST") ?? "127.0.0.1"; 
 
     private readonly Action<Action> runOnUi;   // UI 스레드 실행 함수
-    private PeriodicTimer? dailyTimer;                    // 날짜 확인 타이머 (1분)
+    private PeriodicTimer? dailyTimer;                    // 날짜 확인 타이머 젤
     private Task dailyReady = Task.CompletedTask;         // 시작 시 요약 채우기 작업
 
 

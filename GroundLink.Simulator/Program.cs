@@ -1,7 +1,7 @@
 ﻿/*
  * 위성 시뮬레이터 (콘솔)
  *
- * 1. TCP 서버 : (모든 네트워크:5000, 다른 PC에서도 연결 가능)
+ * 1. TCP 서버 
  * 2. 1초마다 텔레메트리 JSON형태 데이터 1건 전송 
  * 3. 궤도 모델 (햇빛 = 충전 / 그늘 = 방전)
  * 4. 통신이 중간에 끊어지면 대기 상태
@@ -30,12 +30,13 @@ JsonSerializerOptions jsonOptions = new JsonSerializerOptions
     PropertyNamingPolicy = JsonNamingPolicy.CamelCase  
 };
 
-TcpListener listener = new TcpListener(IPAddress.Any, 5000);   // 다른 PC 연결 허용 (테스트용)
+string bindHost = Environment.GetEnvironmentVariable("GROUNDLINK_SIM_BIND") ?? "127.0.0.1";   // 대기 주소 (환경 변수, 없으면 이 PC)
+TcpListener listener = new TcpListener(IPAddress.Parse(bindHost), 5000);
 listener.Start();
 
 while (true)   
 {
-    Console.WriteLine("접속 대기: 모든 네트워크 :5000");
+    Console.WriteLine($"접속 대기: {bindHost}:5000");
     using TcpClient client = listener.AcceptTcpClient();   
     Console.WriteLine($"접속됨: {client.Client.RemoteEndPoint}");
 
@@ -72,13 +73,13 @@ while (true)
     }
 }
 
-// 궤도 안 위치 → 배터리 (%). 0초 = 햇빛 시작
+// 궤도 위치 → 배터리 (%). 0초 = 햇빛 시작
 double BatteryAt(double phase) =>
     phase < SunDuration
         ? (SocMax - Dod) + Dod * phase / SunDuration                   // 햇빛: 충전 85 → 100
         : SocMax - Dod * (phase - SunDuration) / EclipseDuration;      // 그늘: 방전 100 → 85
 
-// 궤도 안 위치 → 배터리 온도 (°C)
+// 궤도 위치 → 배터리 온도 (°C)
 double TemperatureAt(double phase) =>
     phase < SunDuration
         ? TempMean - TempAmp * Math.Cos(Math.PI * phase / SunDuration)                       // 햇빛: 12 → 18
@@ -87,5 +88,5 @@ double TemperatureAt(double phase) =>
 // -amplitude ~ +amplitude 사이 잡음 (센서 흔들림 흉내)
 double Noise(double amplitude) => (random.NextDouble() * 2 - 1) * amplitude;
 
-// 보낼 데이터 1건 (앱의 Models/Telemetry와 필드 이름 같음)
+// 보낼 데이터 1건 (WPF: Models/Telemetry 필드 통일)
 record Telemetry(string SatelliteId, DateTime RecordedAt, double Battery, double Temperature);
