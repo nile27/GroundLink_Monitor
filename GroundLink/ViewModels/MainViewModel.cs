@@ -22,6 +22,7 @@ public partial class MainViewModel : ObservableObject
     private readonly string satelliteId;
     private readonly TelemetryReceiver receiver = new TelemetryReceiver();   // 수신 서비스
     private readonly TelemetrySaver saver; // 저장 서비스
+    private readonly string simulatorHost = Environment.GetEnvironmentVariable("GROUNDLINK_SIM_HOST") ?? "127.0.0.1";   // 시뮬레이터 주소 (테스트용)
 
     private readonly Action<Action> runOnUi;   // UI 스레드 실행 함수
     private PeriodicTimer? dailyTimer;                    // 날짜 확인 타이머 (1분)
@@ -114,7 +115,7 @@ public partial class MainViewModel : ObservableObject
 
         try
         {
-            receiver.Start("127.0.0.1", 5000);
+            receiver.Start(simulatorHost, 5000);
             StatusText = "수신 중";
             StatusColor = Theme.Ok;
             StatusDetail = "";
@@ -124,7 +125,7 @@ public partial class MainViewModel : ObservableObject
             StatusText = "연결 실패";
             StatusColor = Theme.Danger;
             ErrorText = ex.SocketErrorCode == SocketError.ConnectionRefused
-                ? "시뮬레이터 연결 실패: 시뮬레이터가 실행 중인지 확인 (127.0.0.1:5000)"
+                ? $"시뮬레이터 연결 실패: 시뮬레이터가 실행 중인지 확인 ({simulatorHost}:5000)"
                 : $"시뮬레이터 연결 실패: {ex.SocketErrorCode}";
 
         }

@@ -1,7 +1,7 @@
 ﻿/*
  * 위성 시뮬레이터 (콘솔)
  *
- * 1. TCP 서버 : (127.0.0.1:5000)
+ * 1. TCP 서버 : (모든 네트워크:5000, 다른 PC에서도 연결 가능)
  * 2. 1초마다 텔레메트리 JSON형태 데이터 1건 전송 
  * 3. 궤도 모델 (햇빛 = 충전 / 그늘 = 방전)
  * 4. 통신이 중간에 끊어지면 대기 상태
@@ -30,12 +30,12 @@ JsonSerializerOptions jsonOptions = new JsonSerializerOptions
     PropertyNamingPolicy = JsonNamingPolicy.CamelCase  
 };
 
-TcpListener listener = new TcpListener(IPAddress.Loopback, 5000);  
+TcpListener listener = new TcpListener(IPAddress.Any, 5000);   // 다른 PC 연결 허용 (테스트용)
 listener.Start();
 
 while (true)   
 {
-    Console.WriteLine("접속 대기: 127.0.0.1:5000");
+    Console.WriteLine("접속 대기: 모든 네트워크 :5000");
     using TcpClient client = listener.AcceptTcpClient();   
     Console.WriteLine($"접속됨: {client.Client.RemoteEndPoint}");
 
