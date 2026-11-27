@@ -21,6 +21,7 @@ const double SocMax = 100.0;        // 햇빛 끝 배터리 (%)
 const double Dod = 15.0;            // 1바퀴에 방전되는 양 (%) → 85 ~ 100
 const double TempMean = 15.0;       // 온도 평균 (°C)
 const double TempAmp = 3.0;         // 온도 변화 폭 (°C) → 12 ~ 18
+const int SendOffsetMs = 500;       // 매초 송신 위치 (윈도우 시계 xx.500초)
 
 DateTime epoch = new DateTime(2026, 1, 1, 0, 0, 0);   
 Random random = new Random();
@@ -45,11 +46,13 @@ while (true)
 
     try
     {
-        using PeriodicTimer timer = new PeriodicTimer(TimeSpan.FromSeconds(1));   // 1초 주기 타이머
+        DateTime target = NextSendTime(DateTime.Now);   // 첫 송신 시각
 
         while (true)
         {
-            await timer.WaitForNextTickAsync();   // 다음 1초까지 대기
+            TimeSpan wait = target - DateTime.Now;   // 송신 시각까지 남은 시간 (윈도우 시계 기준)
+            if (wait > TimeSpan.Zero)
+                await Task.Delay(wait);
 
             DateTime now = DateTime.Now;
             double phase = (now - epoch).TotalSeconds % OrbitPeriod;   
@@ -64,6 +67,10 @@ while (true)
 
             string zone = phase < SunDuration ? "햇빛" : "그늘";
             Console.WriteLine($"[{zone} {(int)phase,4}초] 보냄: {json}");
+
+            target = target.AddSeconds(1);   // 다음 송신 시각
+            if (DateTime.Now - target > TimeSpan.FromSeconds(1))
+                target = NextSendTime(DateTime.Now);   // 1초 넘게 밀리면 다시 맞춤
         }
     }
     catch (IOException)
@@ -72,6 +79,10 @@ while (true)
         Console.WriteLine("연결 끊김");
     }
 }
+
+// 다음 초의 송신 위치 (예: 12:00:05.300 → 12:00:06.500)
+DateTime NextSendTime(DateTime t) =>
+    t.Date.AddSeconds(Math.Floor(t.TimeOfDay.TotalSeconds) + 1).AddMilliseconds(SendOffsetMs);
 
 // 궤도 위치 → 배터리 (%). 0초 = 햇빛 시작
 double BatteryAt(double phase) =>
