@@ -483,10 +483,6 @@ $RECYCLE.BIN/
 # Vim temporary swap files
 *.swp
 
-# SSMS에서 저장한 임시 쿼리 (정식 스크립트는 번호를 붙인 파일만)
-DB/SQLQuery*.sql
 
-# 개인 문서: 개발일지·가이드·MVVM 비교 스냅샷은 저장소에 안 올림 (README.md만 허용)
-DOCS/
 *.md
 !README.md
