@@ -47,7 +47,7 @@ GroundLink.Simulator/       위성 시뮬레이터 (콘솔, TCP 서버)
 GroundLink.Tests/           xUnit 테스트 (요약·원본 비교, 조회 시간 측정 등)
 ```
 
-![클래스 다이어그램](docs/images/class.png)
+
 
 **데이터 흐름**
 ```
