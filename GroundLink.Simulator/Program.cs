@@ -52,7 +52,7 @@ while (true)
         {
             TimeSpan wait = target - DateTime.Now;   // 송신 시각까지 남은 시간 (윈도우 시계 기준)
             if (wait > TimeSpan.Zero)
-                await Task.Delay(wait);
+                Thread.Sleep(wait);
 
             DateTime now = DateTime.Now;
             double phase = (now - epoch).TotalSeconds % OrbitPeriod;   
