@@ -39,7 +39,8 @@ public partial class MainWindow : Window
         // ViewModel 연결
         viewModel = new MainViewModel(
             new TelemetryRepository(ConnectionString), SatelliteId,
-            action => Dispatcher.InvokeAsync(action));   // UI스레드 추가
+            action => Dispatcher.InvokeAsync(action)); 
+
         viewModel.HistoryLoaded += OnHistoryLoaded;
         viewModel.TelemetryReceived += OnTelemetryReceived;
         DataContext = viewModel;

@@ -20,10 +20,21 @@ namespace GroundLink.Network
         public bool IsConnected => client != null && client.Connected;
 
         // 시뮬레이터 접속 함수
-        public void Connect(string host, int port)
+        public async Task ConnectAsync(string host, int port, TimeSpan timeout)
         {
             client = new TcpClient();
-            client.Connect(host, port);
+            using CancellationTokenSource cts = new CancellationTokenSource(timeout);
+
+            try
+            {
+                await client.ConnectAsync(host, port, cts.Token);   // 시간 넘으면 OperationCanceledException
+            }
+            catch
+            {
+                Disconnect();   // 실패하면 정리
+                throw;
+            }
+
             reader = new StreamReader(client.GetStream());
         }
 

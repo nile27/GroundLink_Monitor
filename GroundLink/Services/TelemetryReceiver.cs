@@ -14,15 +14,15 @@ public class TelemetryReceiver
     // 1건 받음 이벤트
     public event Action<Telemetry>? Received;
 
-    // 연결 끊김 이벤트 (이유 글자)
+    // 연결 끊김 이벤트 
     public event Action<string>? Disconnected;
 
     public bool IsConnected => client.IsConnected;
 
     // 접속 + 수신 스레드 시작 함수
-    public void Start(string host, int port)
+    public async Task StartAsync(string host, int port, TimeSpan timeout)
     {
-        client.Connect(host, port);
+        await client.ConnectAsync(host, port, timeout);
 
         receiveThread = new Thread(ReceiveLoop) { IsBackground = true, Name = "TelemetryReceive" };
         receiveThread.Start();

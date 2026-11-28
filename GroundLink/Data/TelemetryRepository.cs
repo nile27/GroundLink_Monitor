@@ -1,7 +1,7 @@
 ﻿using System.Data;
 using GroundLink.Models;
 using Microsoft.Data.SqlClient;
-using System.Diagnostics;
+
 
 
 
@@ -37,9 +37,9 @@ namespace GroundLink.Data
             if (!reader.Read())
                 return null;
 
-            DateTime recordedAt = reader.GetDateTime(0);   // SELECT 첫 번째 칸
-            double battery = reader.GetDouble(1);          // 두 번째 칸
-            double temperature = reader.GetDouble(2);      // 세 번째 칸
+            DateTime recordedAt = reader.GetDateTime(0);  
+            double battery = reader.GetDouble(1);         
+            double temperature = reader.GetDouble(2);     
 
             return new Telemetry(satelliteId, recordedAt, battery, temperature);
 
@@ -154,7 +154,7 @@ namespace GroundLink.Data
             return (battery, temperature);
         }
 
-        // 하루 요약 채우기 함수 (없는 날 + 어제)
+        // 하루 요약 채우기 함수
         public async Task FillDailyAsync(string satelliteId, DateTime fromDay, DateTime toDay)
         {
             const string createSql = """
@@ -182,9 +182,9 @@ namespace GroundLink.Data
             await connection.OpenAsync();
 
             await using (var createCommand = new SqlCommand(createSql, connection))
-                await createCommand.ExecuteNonQueryAsync();   // 요약 테이블 없으면 만들기
+                await createCommand.ExecuteNonQueryAsync();   
 
-            HashSet<DateTime> savedDays = new HashSet<DateTime>();   // 이미 저장된 날
+            HashSet<DateTime> savedDays = new HashSet<DateTime>();  
             await using (var daysCommand = new SqlCommand(daysSql, connection))
             {
                 daysCommand.Parameters.Add("@satelliteId", SqlDbType.VarChar, 16).Value = satelliteId;

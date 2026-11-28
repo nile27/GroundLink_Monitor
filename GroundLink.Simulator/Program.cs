@@ -31,7 +31,8 @@ JsonSerializerOptions jsonOptions = new JsonSerializerOptions
     PropertyNamingPolicy = JsonNamingPolicy.CamelCase  
 };
 
-string bindHost = Environment.GetEnvironmentVariable("GROUNDLINK_SIM_BIND") ?? "127.0.0.1";   // 대기 주소 (환경 변수, 없으면 이 PC)
+string bindHost = Environment.GetEnvironmentVariable("GROUNDLINK_SIM_BIND") ?? "127.0.0.1";
+
 TcpListener listener = new TcpListener(IPAddress.Parse(bindHost), 5000);
 listener.Start();
 
@@ -80,7 +81,7 @@ while (true)
     }
 }
 
-// 다음 초의 송신 위치 (예: 12:00:05.300 → 12:00:06.500)
+// 다음 초의 송신 위치
 DateTime NextSendTime(DateTime t) =>
     t.Date.AddSeconds(Math.Floor(t.TimeOfDay.TotalSeconds) + 1).AddMilliseconds(SendOffsetMs);
 

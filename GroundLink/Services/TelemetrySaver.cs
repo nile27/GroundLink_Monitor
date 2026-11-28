@@ -10,7 +10,7 @@ public class TelemetrySaver
     public const int BatchSize = 10;   // 한 번에 저장할 건수
 
     private readonly TelemetryRepository repository;
-    private readonly List<Telemetry> buffer = new List<Telemetry>();   // 저장 대기
+    private readonly List<Telemetry> buffer = new List<Telemetry>();   
     private int savedCount;   // 지금까지 저장한 건수
 
     // 저장 완료 이벤트

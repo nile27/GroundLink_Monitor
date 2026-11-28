@@ -7,8 +7,6 @@ using Microsoft.Data.SqlClient;
 using System.Diagnostics;
 // socket client 연결 부
 using System.Net.Sockets;
-using System.Runtime.InteropServices;
-
 
 namespace GroundLink.ViewModels;
 
@@ -22,10 +20,11 @@ public partial class MainViewModel : ObservableObject
     private readonly string satelliteId;
     private readonly TelemetryReceiver receiver = new TelemetryReceiver();   // 수신 서비스
     private readonly TelemetrySaver saver; // 저장 서비스
-    private readonly string simulatorHost = Environment.GetEnvironmentVariable("GROUNDLINK_SIM_HOST") ?? "127.0.0.1"; 
+    private readonly string simulatorHost = Environment.GetEnvironmentVariable("GROUNDLINK_SIM_HOST") ?? "127.0.0.1";
+  
 
-    private readonly Action<Action> runOnUi;   // UI 스레드 실행 함수
-    private PeriodicTimer? dailyTimer;                    // 날짜 확인 타이머 젤
+    private static readonly TimeSpan ConnectTimeout = TimeSpan.FromSeconds(3);   // 연결 시간 제한
+    private PeriodicTimer? dailyTimer;                    // 날짜 확인 타이머 - 1분
     private Task dailyReady = Task.CompletedTask;         // 시작 시 요약 채우기 작업
 
 
@@ -40,7 +39,6 @@ public partial class MainViewModel : ObservableObject
     {
         this.repository = repository;
         this.satelliteId = satelliteId;
-        this.runOnUi = runOnUi;
         saver = new TelemetrySaver(repository);
 
         // 수신 이벤트 연결
@@ -106,27 +104,35 @@ public partial class MainViewModel : ObservableObject
 
     // 시뮬레이터 연결 명령
     [RelayCommand]
-    private void Connect()
+    private async Task Connect()
     {
         if (receiver.IsConnected)   // 이미 연결 중
             return;
 
         ErrorText = "";
+        StatusText = "연결 중";
+        StatusColor = Theme.Caution;
+        StatusDetail = "";
 
         try
         {
-            receiver.Start(simulatorHost, 5000);
+            await receiver.StartAsync(simulatorHost, 5000, ConnectTimeout);
             StatusText = "수신 중";
             StatusColor = Theme.Ok;
-            StatusDetail = "";
+        }
+        catch (OperationCanceledException)   // 시간 안에 응답 없음
+        {
+            StatusText = "연결 실패";
+            StatusColor = Theme.Danger;
+            StatusDetail = "시뮬레이터 응답 없음";
         }
         catch (SocketException ex)
         {
             StatusText = "연결 실패";
             StatusColor = Theme.Danger;
-            ErrorText = ex.SocketErrorCode == SocketError.ConnectionRefused
-                ? $"시뮬레이터 연결 실패: 시뮬레이터가 실행 중인지 확인 ({simulatorHost}:5000)"
-                : $"시뮬레이터 연결 실패: {ex.SocketErrorCode}";
+            StatusDetail = ex.SocketErrorCode == SocketError.ConnectionRefused
+                ? "시뮬레이터가 실행 중인지 확인"
+                : $"{ex.SocketErrorCode}";
 
         }
     }
